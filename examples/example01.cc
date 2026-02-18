@@ -38,10 +38,10 @@ int main()
        << "     example N.1       \n"
        << "***********************\n\n";
   // Simple example using simple data
-  GenericContainer gc1 = 1;
-  GenericContainer gc2 = 1.2;
-  GenericContainer gc3 = true;
-  GenericContainer gc4 = "pippo";
+  GenericContainer gc1{ 1 };
+  GenericContainer gc2{ 1.2 };
+  GenericContainer gc3{ true };
+  GenericContainer gc4{ "pippo" };
   GenericContainer gc5;
 
   cout << "GenericContainer simple usage\n";
