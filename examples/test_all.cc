@@ -23,6 +23,7 @@
  */
 
 #include "GenericContainer.hh"
+#include <chrono>
 #include <iomanip>
 #include <vector>
 #include <map>
@@ -1515,7 +1516,7 @@ void test_copyto_methods()
     bool passed = (dest.num_rows() == 2 && dest.num_cols() == 3);
     for (unsigned i = 0; i < 2 && passed; ++i) {
       for (unsigned j = 0; j < 3 && passed; ++j) {
-        passed = (dest(i, j) == i * 10 + j);
+        passed = ( dest( i, j ) == static_cast<int_type>( i * 10U + j ) );
       }
     }
     print_test_case("copyto_mat_int", passed);
