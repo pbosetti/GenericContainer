@@ -23,11 +23,14 @@
  */
 
 #include "GenericContainer.hh"
+#include <cstdio>
 #include <chrono>
+#include <fstream>
 #include <iomanip>
-#include <vector>
-#include <map>
 #include <complex>
+#include <map>
+#include <type_traits>
+#include <vector>
 
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wsign-conversion"
@@ -36,6 +39,10 @@
 
 using namespace std;
 using namespace GC;
+
+static_assert(
+  std::is_same_v<decltype( &GenericContainer::erase ), void ( GenericContainer::* )( string_view )>,
+  "GenericContainer::erase must remain a mutating, non-const member function" );
 
 // ===========================================================================
 // Helper Functions for Formatted Output
@@ -150,8 +157,10 @@ void test_simple_types()
   {
     int x = 42;
     gc.set_pointer( &x );
-    void * ptr    = gc.get_pvoid();
-    bool   passed = ( ptr == &x );
+    void *  ptr    = gc.get_pvoid();
+    void ** pptr   = gc.get_ppvoid();
+    bool    passed = ( ptr == &x );
+    passed &= ( pptr != nullptr && *pptr == &x );
     print_test_case( "set_pointer / get_pvoid", passed );
     print_info_table( "Pointer", gc );
     all_passed &= passed;
@@ -261,6 +270,23 @@ void test_vector_types()
     bool            passed    = ( retrieved == vec );
     print_test_case( "set_vec_bool / get_vec_bool", passed );
     print_info_table( "Vector of Booleans (5 elements)", gc );
+    all_passed &= passed;
+  }
+
+  // Test vector of pointers
+  {
+    GenericContainer gc;
+    int              a = 1;
+    int              b = 2;
+    vec_pointer_type vec = { &a, &b };
+    gc.set_vec_pointer( vec );
+
+    vec_pointer_type & retrieved = gc.get_vec_pointer();
+    bool               passed    = ( retrieved.size() == vec.size() );
+    passed &= ( retrieved[0] == &a );
+    passed &= ( retrieved[1] == &b );
+    print_test_case( "set_vec_pointer / get_vec_pointer", passed );
+    print_info_table( "Vector of Pointers (2 elements)", gc );
     all_passed &= passed;
   }
 
@@ -654,6 +680,101 @@ void test_serialization()
       cout << "  ❗ Serialization/deserialization mismatch\n";
     }
 
+    all_passed &= passed;
+  }
+
+  // Test empty string serialization
+  {
+    GenericContainer original;
+    original.set_string( "" );
+
+    vector<uint8_t> buffer( original.serialize() );
+
+    GenericContainer restored;
+    int32_t          used = restored.de_serialize( buffer );
+
+    bool passed = used == static_cast<int32_t>( buffer.size() );
+    passed &= restored.get_type() == GC_type::STRING;
+    passed &= restored.get_string() == "";
+
+    print_test_case( "serialize()/de_serialize() empty string", passed );
+    all_passed &= passed;
+  }
+
+  // Test pointer and vec_pointer serialization
+  {
+    int              a = 7;
+    int              b = 9;
+    GenericContainer original;
+    original.set_map();
+    original["ptr"].set_pointer( &a );
+    original["ptrs"].set_vec_pointer( vec_pointer_type{ &a, &b } );
+
+    vector<uint8_t> buffer( original.serialize() );
+
+    GenericContainer restored;
+    int32_t          used = restored.de_serialize( buffer );
+
+    bool passed = used == static_cast<int32_t>( buffer.size() );
+    passed &= restored["ptr"].get_pvoid() == &a;
+    vec_pointer_type const & restored_ptrs = restored["ptrs"].get_vec_pointer();
+    passed &= restored_ptrs.size() == 2;
+    passed &= restored_ptrs[0] == &a;
+    passed &= restored_ptrs[1] == &b;
+
+    print_test_case( "serialize()/de_serialize() pointers", passed );
+    all_passed &= passed;
+  }
+
+  // Test truncated buffers are rejected
+  {
+    GenericContainer original;
+    original.set_map();
+    original["payload"].set_vec_string( { "alpha", "beta", "" } );
+
+    vector<uint8_t> buffer( original.serialize() );
+    buffer.pop_back();
+
+    bool passed = false;
+    try
+    {
+      GenericContainer restored;
+      restored.de_serialize( buffer );
+    }
+    catch ( std::exception const & e )
+    {
+      passed = true;
+      cout << "  Expected exception: " << e.what() << "\n";
+    }
+
+    print_test_case( "de_serialize rejects truncated buffer", passed );
+    all_passed &= passed;
+  }
+
+  // Test corrupted string size is rejected
+  {
+    GenericContainer original;
+    original.set_string( "abc" );
+
+    vector<uint8_t> buffer( original.serialize() );
+    buffer[4] = 64;
+    buffer[5] = 0;
+    buffer[6] = 0;
+    buffer[7] = 0;
+
+    bool passed = false;
+    try
+    {
+      GenericContainer restored;
+      restored.de_serialize( buffer );
+    }
+    catch ( std::exception const & e )
+    {
+      passed = true;
+      cout << "  Expected exception: " << e.what() << "\n";
+    }
+
+    print_test_case( "de_serialize rejects corrupted string size", passed );
     all_passed &= passed;
   }
 
@@ -1144,6 +1265,9 @@ void test_mat_type_comprehensive()
   {
     mat_int_type mat(0, 0);
     bool passed = (mat.num_rows() == 0 && mat.num_cols() == 0 && mat.empty());
+    passed &= mat.data() == nullptr;
+    mat_int_type const & cmat = mat;
+    passed &= cmat.data() == nullptr;
     print_test_case("0×0 matrix", passed);
     all_passed &= passed;
   }
@@ -1919,7 +2043,7 @@ void test_get_map_with_vector_keys()
     
     bool passed = false;
     try {
-      int_type value = gc.get_map_int(keys, "Test no key");
+      gc.get_map_int(keys, "Test no key");
       // Non dovrebbe arrivare qui
       passed = false;
     } catch ( std::exception const & e) {
@@ -2148,24 +2272,16 @@ void test_edge_cases()
 
   bool all_passed = true;
 
-  // Test 1: Accesso fuori range con operator[]
+  // Test 1: operator[] non-const alloca/resizza il vector on demand
   {
     GenericContainer gc;
-    gc.set_vec_int({1, 2, 3});
-    
-    bool passed = false;
-    try {
-      GenericContainer& item = gc[10];  // Fuori range
-      (void)item;
-      passed = true;  // deve fare resize!
-    } catch ( std::exception const & e) {
-      passed = false;
-      cout << "  exception: " << e.what() << "\n";
-    } catch (...) {
-      passed = false;  // Qualsiasi eccezione va male
-    }
-    
-    print_test_case("operator[] out of range (throws)", passed);
+    gc[10].set_int( 123 );
+
+    bool passed = gc.get_type() == GC_type::VECTOR;
+    passed &= gc.get_vector().size() == 11;
+    passed &= gc[10].get_int() == 123;
+
+    print_test_case("operator[] grows vector on demand", passed);
     all_passed &= passed;
   }
 
@@ -2213,7 +2329,21 @@ void test_edge_cases()
     all_passed &= passed;
   }
 
-  // Test 5: Matrice con dimensioni zero - num_rows/num_cols
+  // Test 5: get_if_exists con fallback su vettore di chiavi booleane
+  {
+    GenericContainer gc;
+    gc.set_map();
+    gc["enabled"].set_bool( true );
+
+    bool value  = false;
+    bool passed = gc.get_if_exists( vec_string_type{ "missing", "enabled" }, value );
+    passed &= value;
+
+    print_test_case("get_if_exists bool with vector keys", passed);
+    all_passed &= passed;
+  }
+
+  // Test 6: Matrice con dimensioni zero - num_rows/num_cols
   {
     GenericContainer gc;
     gc.set_mat_int(0, 0);
@@ -2223,7 +2353,24 @@ void test_edge_cases()
     all_passed &= passed;
   }
 
-  // Test 6: Tentativo di promozione impossibile
+  // Test 7: Accesso const a matrice reale
+  {
+    GenericContainer gc;
+    mat_real_type mat( 2, 2 );
+    mat( 0, 0 ) = 1.0;
+    mat( 1, 0 ) = 2.0;
+    mat( 0, 1 ) = 3.0;
+    mat( 1, 1 ) = 4.0;
+    gc.set_mat_real( mat );
+
+    GenericContainer const & cgc = gc;
+    bool passed = abs( cgc.get_real_at( 1, 1, "const mat access" ) - 4.0 ) < 1e-12;
+
+    print_test_case("const get_real_at on matrix", passed);
+    all_passed &= passed;
+  }
+
+  // Test 8: Tentativo di promozione impossibile
   {
     GenericContainer gc;
     gc.set_string("cannot promote");
@@ -2244,18 +2391,80 @@ void test_edge_cases()
     all_passed &= passed;
   }
 
-  // Test 7: exists() su container non-mappa
+  // Test 9: inizializzazione lazy di matrici intere e long
+  {
+    GenericContainer gc_int;
+    GenericContainer gc_long;
+
+    gc_int.get_int_at( 1, 2 )  = 7;
+    gc_long.get_long_at( 2, 1 ) = 11;
+
+    bool passed = gc_int.get_type() == GC_type::MAT_INTEGER;
+    passed &= gc_int.get_mat_int().num_rows() == 2;
+    passed &= gc_int.get_mat_int().num_cols() == 3;
+    passed &= gc_int.get_int_at( 1, 2, "lazy mat int" ) == 7;
+    passed &= gc_long.get_type() == GC_type::MAT_LONG;
+    passed &= gc_long.get_mat_long().num_rows() == 3;
+    passed &= gc_long.get_mat_long().num_cols() == 2;
+    passed &= gc_long.get_long_at( 2, 1, "lazy mat long" ) == 11;
+
+    print_test_case("lazy matrix initialization keeps integer types", passed);
+    all_passed &= passed;
+  }
+
+  // Test 10: exists() su container non-mappa restituisce false
   {
     GenericContainer gc;
     gc.set_int(42);
     
     bool passed = !gc.exists("key");
 
-    print_test_case("exists() on non-map container (throws)", passed);
+    print_test_case("exists() on non-map container returns false", passed);
     all_passed &= passed;
   }
 
-  // Test 8: get_number su tipo incompatibile
+  // Test 11: string_view non terminata da null come chiave
+  {
+    GenericContainer gc;
+    gc.set_map();
+    gc["abc"].set_int( 7 );
+
+    string      backing = "abcdef";
+    string_view key( backing.data(), 3 );
+
+    bool passed = gc.exists( key );
+    passed &= ( gc.get_map_int( key ) == 7 );
+
+    print_test_case("string_view key preserves length", passed);
+    all_passed &= passed;
+  }
+
+  // Test 12: operator[] const non deve mutare la mappa
+  {
+    GenericContainer gc;
+    gc.set_map();
+    gc["present"].set_int( 1 );
+
+    GenericContainer const & cgc = gc;
+    bool                     passed = false;
+    try
+    {
+      string      backing = "missing.tail";
+      string_view missing( backing.data(), 7 );
+      (void)cgc[missing];
+    }
+    catch ( std::exception const & )
+    {
+      passed = true;
+    }
+    passed &= gc.get_map().size() == 1;
+    passed &= !gc.exists( "missing" );
+
+    print_test_case("const operator[] does not insert missing key", passed);
+    all_passed &= passed;
+  }
+
+  // Test 13: get_number su tipo incompatibile
   {
     GenericContainer gc;
     gc.set_string("not a number");
@@ -2275,7 +2484,7 @@ void test_edge_cases()
     all_passed &= passed;
   }
 
-  // Test 9: Tentativo di ottenere puntatore da tipo non supportato
+  // Test 14: Tentativo di ottenere puntatore da tipo non supportato
   {
     GenericContainer gc;
     gc.set_bool(true);
@@ -2295,7 +2504,7 @@ void test_edge_cases()
     all_passed &= passed;
   }
 
-  // Test 10: merge con conflitti
+  // Test 13: merge con chiavi duplicate sovrascrive i valori esistenti
   {
     GenericContainer gc1;
     gc1.set_map();
@@ -2307,20 +2516,17 @@ void test_edge_cases()
     gc2["id"].set_int(2);  // Conflitto!
     gc2["value"].set_real(3.14);
     
-    bool passed = false;
-    try {
-      gc1.merge(gc2, "Test merge with conflict");
-      passed = true;  // Dovrebbe lanciare eccezione per conflitto
-    } catch (std::exception const & e) {
-      passed = false;
-      cout << "  Exception for merge conflict: " << e.what() << "\n";
-    }
-    
-    print_test_case("merge with key conflict (throws)", passed);
+    gc1.merge(gc2, "Test merge with conflict");
+
+    bool passed = gc1["id"].get_int() == 2;
+    passed &= gc1["name"].get_string() == "Original";
+    passed &= abs( gc1["value"].get_real() - 3.14 ) < 1e-12;
+
+    print_test_case("merge with key conflict overwrites", passed);
     all_passed &= passed;
   }
 
-  // Test 11: Serializzazione/deserializzazione di container vuoto
+  // Test 14: Serializzazione/deserializzazione di container vuoto
   {
     GenericContainer gc;
     
@@ -2343,6 +2549,11 @@ void test_static_and_utility()
   print_header("TEST STATIC & UTILITY: Static Methods and Utilities");
 
   bool all_passed = true;
+
+  constexpr bool erase_signature_is_non_const =
+    std::is_same_v<decltype( &GenericContainer::erase ), void ( GenericContainer::* )( string_view )>;
+  print_test_case("erase signature is non-const", erase_signature_is_non_const);
+  all_passed &= erase_signature_is_non_const;
 
   // Test 1: gc_from_json static method
   {
@@ -2496,7 +2707,24 @@ values = [1.1, 2.2, 3.3]
     all_passed &= passed;
   }
 
-  // Test 8: exception static method
+  // Test 8: erase con string_view non terminata da null
+  {
+    GenericContainer gc;
+    gc.set_map();
+    gc["alpha"].set_int( 1 );
+
+    string      backing = "alpha_tail";
+    string_view key( backing.data(), 5 );
+    gc.erase( key );
+
+    bool passed = !gc.exists( "alpha" );
+    passed &= gc.get_map().empty();
+
+    print_test_case("erase with string_view preserves key length", passed);
+    all_passed &= passed;
+  }
+
+  // Test 9: exception static method
   {
     bool passed = false;
     try {
@@ -2511,7 +2739,61 @@ values = [1.1, 2.2, 3.3]
     all_passed &= passed;
   }
 
-  // Test 9: collapse con strutture annidate complesse
+  // Test 10: exception con string_view non terminata da null
+  {
+    string expected = "Exact error text";
+    string backing  = expected + " with trailing garbage";
+
+    bool passed = false;
+    try {
+      GenericContainer::exception( string_view( backing.data(), expected.size() ) );
+    } catch ( std::exception const & e ) {
+      passed = string( e.what() ) == expected;
+      cout << "  Expected exception: " << e.what() << "\n";
+    }
+
+    print_test_case("exception preserves string_view length", passed);
+    all_passed &= passed;
+  }
+
+  // Test 11: from_file con string_view non terminata da null e dispatch per estensione
+  {
+    auto run_from_file_case = []( string const & path, string const & payload, auto const & check ) -> bool
+    {
+      ofstream out( path );
+      out << payload;
+      out.close();
+
+      string      storage = path + ".ignored";
+      string_view view( storage.data(), path.size() );
+
+      GenericContainer gc;
+      bool             passed = gc.from_file( view );
+      if ( passed ) passed &= check( gc );
+
+      std::remove( path.c_str() );
+      return passed;
+    };
+
+    bool passed = true;
+    passed &= run_from_file_case(
+      "gc_from_file_test.yaml",
+      "id: 7\nname: yaml\n",
+      []( GenericContainer const & gc ) { return gc["id"].get_int() == 7 && gc["name"].get_string() == "yaml"; } );
+    passed &= run_from_file_case(
+      "gc_from_file_test.json",
+      "{ \"id\": 8, \"name\": \"json\" }\n",
+      []( GenericContainer const & gc ) { return gc["id"].get_int() == 8 && gc["name"].get_string() == "json"; } );
+    passed &= run_from_file_case(
+      "gc_from_file_test.toml",
+      "id = 9\nname = \"toml\"\n",
+      []( GenericContainer const & gc ) { return gc["id"].get_int() == 9 && gc["name"].get_string() == "toml"; } );
+
+    print_test_case("from_file accepts substring-backed paths", passed);
+    all_passed &= passed;
+  }
+
+  // Test 12: collapse con lunghezze incompatibili lascia il vettore invariato
   {
     GenericContainer gc;
     gc.set_vector(3);
@@ -2521,21 +2803,22 @@ values = [1.1, 2.2, 3.3]
     gc[1].set_vec_real({3.0, 4.0, 5.0});  // Lunghezza diversa!
     gc[2].set_vec_real({6.0, 7.0});
     
-    bool passed = false;
-    try {
-      gc.collapse();
-      // Dovrebbe lanciare eccezione perché le lunghezze sono diverse
-      passed = true;
-    } catch (std::exception const & e) {
-      passed = false;
-      cout << "  Exception: " << e.what() << "\n";
-    }
-    
-    print_test_case("collapse with mismatched lengths (throws)", passed);
+    gc.collapse();
+
+    bool passed = gc.get_type() == GC_type::VECTOR;
+    passed &= gc.get_vector().size() == 3;
+    passed &= gc[0].get_type() == GC_type::VEC_REAL;
+    passed &= gc[1].get_type() == GC_type::VEC_REAL;
+    passed &= gc[2].get_type() == GC_type::VEC_REAL;
+    passed &= gc[0].get_vec_real().size() == 2;
+    passed &= gc[1].get_vec_real().size() == 3;
+    passed &= gc[2].get_vec_real().size() == 2;
+
+    print_test_case("collapse with mismatched lengths keeps vector", passed);
     all_passed &= passed;
   }
 
-  // Test 10: collapse con vettori compatibili
+  // Test 13: collapse con vettori compatibili
   {
     GenericContainer gc;
     gc.set_vector(2);
@@ -2557,6 +2840,382 @@ values = [1.1, 2.2, 3.3]
   }
 
   print_test_case("Static & Utility Methods Overall", all_passed);
+}
+
+void test_api_surface_systematic()
+{
+  print_header("TEST API SURFACE: Systematic Public API Coverage");
+
+  bool all_passed = true;
+
+  // Test 1: constructors, set(), operator= and load()
+  {
+    int pointee = 77;
+
+    string      backing = "hello_view_tail";
+    string_view sv( backing.data(), 10 );  // "hello_view"
+
+    mat_long_type mat_long( 2, 2 );
+    mat_long( 0, 0 ) = 10;
+    mat_long( 1, 0 ) = 20;
+    mat_long( 0, 1 ) = 30;
+    mat_long( 1, 1 ) = 40;
+
+    mat_complex_type mat_complex( 2, 1 );
+    mat_complex( 0, 0 ) = { 1.0, 2.0 };
+    mat_complex( 1, 0 ) = { 3.0, 4.0 };
+
+    bool passed = true;
+
+    GenericContainer c_bool( true );
+    passed &= c_bool.get_bool();
+
+    GenericContainer c_uint( uint_type( 11 ) );
+    passed &= c_uint.get_int() == 11;
+
+    GenericContainer c_int( int_type( -12 ) );
+    passed &= c_int.get_int() == -12;
+
+    GenericContainer c_ulong( ulong_type( 13 ) );
+    passed &= c_ulong.get_long() == 13;
+
+    GenericContainer c_long( long_type( -14 ) );
+    passed &= c_long.get_long() == -14;
+
+    GenericContainer c_float( 1.25f );
+    passed &= abs( c_float.get_real() - 1.25 ) < 1e-6;
+
+    GenericContainer c_double( 2.5 );
+    passed &= abs( c_double.get_real() - 2.5 ) < 1e-12;
+
+    GenericContainer c_cfloat( complex<float>( 1.0f, 2.0f ) );
+    passed &= abs( c_cfloat.get_complex().real() - 1.0 ) < 1e-12;
+    passed &= abs( c_cfloat.get_complex().imag() - 2.0 ) < 1e-12;
+
+    GenericContainer c_cdouble( complex<double>( 3.0, 4.0 ) );
+    passed &= abs( c_cdouble.get_complex().real() - 3.0 ) < 1e-12;
+    passed &= abs( c_cdouble.get_complex().imag() - 4.0 ) < 1e-12;
+
+    GenericContainer c_cstr( "hello cstr" );
+    passed &= c_cstr.get_string() == "hello cstr";
+
+    GenericContainer c_string( string( "hello string" ) );
+    passed &= c_string.get_string() == "hello string";
+
+    GenericContainer c_view( sv );
+    passed &= c_view.get_string() == "hello_view";
+
+    GenericContainer c_ptr( static_cast<void *>( &pointee ) );
+    passed &= c_ptr.get_pvoid() == &pointee;
+
+    GenericContainer set_gc;
+    set_gc.set( complex<float>( 5.0f, 6.0f ) );
+    passed &= abs( set_gc.get_complex().real() - 5.0 ) < 1e-12;
+    passed &= abs( set_gc.get_complex().imag() - 6.0 ) < 1e-12;
+
+    set_gc.set( sv );
+    passed &= set_gc.get_string() == "hello_view";
+
+    set_gc.set( static_cast<void *>( &pointee ) );
+    passed &= set_gc.get_pvoid() == &pointee;
+
+    GenericContainer assign_gc;
+    assign_gc = vec_bool_type{ true, false, true };
+    passed &= assign_gc.get_vec_bool().size() == 3;
+    passed &= assign_gc.get_vec_bool()[0];
+    passed &= !assign_gc.get_vec_bool()[1];
+
+    assign_gc = vec_long_type{ 100, 200 };
+    passed &= assign_gc.get_vec_long().size() == 2;
+    passed &= assign_gc.get_vec_long()[1] == 200;
+
+    assign_gc = vec_string_type{ "alpha", "beta" };
+    passed &= assign_gc.get_vec_string().size() == 2;
+    passed &= assign_gc.get_vec_string()[0] == "alpha";
+
+    assign_gc = mat_long;
+    passed &= assign_gc.get_mat_long().num_rows() == 2;
+    passed &= assign_gc.get_mat_long().num_cols() == 2;
+    passed &= assign_gc.get_mat_long()( 1, 1 ) == 40;
+
+    assign_gc = mat_complex;
+    passed &= assign_gc.get_mat_complex().num_rows() == 2;
+    passed &= abs( assign_gc.get_mat_complex()( 1, 0 ).imag() - 4.0 ) < 1e-12;
+
+    GenericContainer source;
+    source.set_map();
+    source["payload"].set_vec_int( { 1, 2, 3 } );
+
+    GenericContainer loaded( "stale" );
+    loaded.load( source );
+    source["payload"].get_vec_int()[0] = 99;
+    passed &= loaded["payload"].get_vec_int()[0] == 1;
+
+    print_test_case("constructors / set() / operator= / load()", passed);
+    all_passed &= passed;
+  }
+
+  // Test 2: scalar helpers, pointer getters and print/dump aliases
+  {
+    int value = 12;
+
+    GenericContainer gc;
+    gc.set_map();
+    gc["bool"].set_bool( true );
+    gc["int"].set_int( 42 );
+    gc["long"].set_long( 1234 );
+    gc["real"].set_real( 2.5 );
+    gc["complex"].set_complex( 3.0, 4.0 );
+    gc["string"].set_string( "alpha" );
+    gc["vec_int"].set_vec_int( { 4, 5, 6 } );
+    gc["vec_long"].set_vec_long( { 7, 8 } );
+    gc["vec_real"].set_vec_real( { 1.5, 2.5 } );
+    gc["vec_complex"].set_vec_complex( { { 1.0, 2.0 }, { 3.0, 4.0 } } );
+    gc["ptr"].set_pointer( &value );
+
+    GenericContainer const & cgc = gc;
+
+    real_type re{ 0 }, im{ 0 };
+    cgc["complex"].get_complex_number( re, im );
+
+    ostringstream dump_stream;
+    gc.dump( dump_stream, ">> ", "  " );
+    string dumped = dump_stream.str();
+
+    string printed = gc.print( ">> ", "  " );
+
+    bool passed = cgc["bool"].get_bool();
+    passed &= cgc["int"].get_int() == 42;
+    passed &= cgc["long"].get_long() == 1234;
+    passed &= abs( cgc["real"].get_real() - 2.5 ) < 1e-12;
+    passed &= abs( re - 3.0 ) < 1e-12;
+    passed &= abs( im - 4.0 ) < 1e-12;
+    passed &= cgc["string"].get_string() == "alpha";
+    passed &= cgc["int"].is_number();
+    passed &= !cgc["string"].is_number();
+    passed &= cgc["vec_int"].get_int_pointer()[2] == 6;
+    passed &= cgc["vec_long"].get_long_pointer()[1] == 8;
+    passed &= abs( cgc["vec_real"].get_real_pointer()[0] - 1.5 ) < 1e-12;
+    passed &= abs( cgc["vec_complex"].get_complex_pointer()[1].imag() - 4.0 ) < 1e-12;
+
+    int &       ptr_ref = gc["ptr"].get_pointer<int>();
+    int * const ptr_val = cgc["ptr"].get_pointer<int *>();
+    ptr_ref             = 99;
+    passed &= value == 99;
+    passed &= ptr_val == &value;
+
+    gc["ptr"].free_pointer();
+    passed &= gc["ptr"].empty();
+
+    passed &= dumped.find( "bool" ) != string::npos;
+    passed &= printed.find( "vec_int" ) != string::npos;
+
+    print_test_case("scalar helpers / pointer getters / print()", passed);
+    all_passed &= passed;
+  }
+
+  // Test 3: map getter overload families and operator()
+  {
+    GenericContainer gc;
+    gc.set_map();
+    gc["flag"].set_bool( true );
+    gc["count"].set_int( 5 );
+    gc["value"].set_real( 6.5 );
+    gc["name"].set_string( "alpha" );
+    gc["numbers"].set_vec_real( { 1.0, 2.0, 3.0 } );
+    gc["complexes"].set_vec_complex( { { 1.0, 2.0 }, { 3.0, 4.0 } } );
+    gc["texts"].set_vec_string( { "a", "b" } );
+
+    string      count_backing = "count_tail";
+    string_view count_key( count_backing.data(), 5 );
+    string      name_backing = "name_tail";
+    string_view name_key( name_backing.data(), 4 );
+
+    GenericContainer const & cgc = gc;
+
+    bool passed = gc.get_map_bool( "flag" );
+    passed &= gc.get_map_bool( { "missing", "flag" } );
+    passed &= gc.get_map_int( count_key ) == 5;
+    passed &= gc.get_map_int( { "missing", "count" } ) == 5;
+    passed &= abs( gc.get_map_number( "value" ) - 6.5 ) < 1e-12;
+    passed &= abs( gc.get_map_number( { "missing", "value" } ) - 6.5 ) < 1e-12;
+    passed &= gc.get_map_string( name_key ) == "alpha";
+    passed &= gc.get_map_string( { "missing", "name" } ) == "alpha";
+    passed &= gc.get_map_vec_real( "numbers" ).size() == 3;
+    passed &= abs( gc.get_map_vec_real( { "missing", "numbers" } )[2] - 3.0 ) < 1e-12;
+    passed &= abs( gc.get_map_vec_complex( "complexes" )[1].imag() - 4.0 ) < 1e-12;
+    passed &= abs( gc.get_map_vec_complex( { "missing", "complexes" } )[0].real() - 1.0 ) < 1e-12;
+    passed &= gc.get_map_vec_string( "texts" )[1] == "b";
+    passed &= gc.get_map_vec_string( { "missing", "texts" } )[0] == "a";
+    passed &= gc.exists( vec_string_type{ "missing", "count" } );
+    passed &= gc( name_key, "operator() string" ).get_string() == "alpha";
+    passed &= cgc( name_key, "operator() const string" ).get_string() == "alpha";
+    passed &= cgc( vec_string_type{ "missing", "count" }, "operator() const keys" ).get_int() == 5;
+
+    print_test_case("map getters / operator() overloads", passed);
+    all_passed &= passed;
+  }
+
+  // Test 4: indexed getter families and get_pointer_at()
+  {
+    bool passed = true;
+
+    GenericContainer gc_bool;
+    gc_bool.set_vec_bool( { true, false } );
+    GenericContainer const & cgc_bool = gc_bool;
+    passed &= gc_bool.get_bool_at( 0 );
+    passed &= !cgc_bool.get_bool_at( 1, "const bool at" );
+
+    GenericContainer gc_int;
+    gc_int.set_vec_int( { 10, 20 } );
+    GenericContainer const & cgc_int = gc_int;
+    passed &= gc_int.get_int_at( 1 ) == 20;
+    passed &= cgc_int.get_int_at( 0, "const int at" ) == 10;
+    passed &= abs( cgc_int.get_number_at( 1, "number at" ) - 20.0 ) < 1e-12;
+
+    GenericContainer gc_long;
+    gc_long.set_vec_long( { 100, 200 } );
+    GenericContainer const & cgc_long = gc_long;
+    passed &= gc_long.get_long_at( 0 ) == 100;
+    passed &= cgc_long.get_long_at( 1, "const long at" ) == 200;
+
+    GenericContainer gc_real;
+    gc_real.set_vec_real( { 1.25, 2.5 } );
+    GenericContainer const & cgc_real = gc_real;
+    passed &= abs( gc_real.get_real_at( 1 ) - 2.5 ) < 1e-12;
+    passed &= abs( cgc_real.get_real_at( 0, "const real at" ) - 1.25 ) < 1e-12;
+
+    GenericContainer gc_complex;
+    gc_complex.set_vec_complex( { { 3.0, 4.0 }, { 5.0, 6.0 } } );
+    GenericContainer const & cgc_complex = gc_complex;
+    passed &= abs( gc_complex.get_complex_at( 0 ).imag() - 4.0 ) < 1e-12;
+    passed &= abs( cgc_complex.get_complex_at( 1, "const complex at" ).real() - 5.0 ) < 1e-12;
+    real_type re{ 0 }, im{ 0 };
+    cgc_complex.get_complex_number_at( 1, re, im, "complex number at" );
+    passed &= abs( re - 5.0 ) < 1e-12;
+    passed &= abs( im - 6.0 ) < 1e-12;
+
+    GenericContainer gc_string;
+    gc_string.set_vec_string( { "foo", "bar" } );
+    GenericContainer const & cgc_string = gc_string;
+    passed &= gc_string.get_string_at( 1 ) == "bar";
+    passed &= cgc_string.get_string_at( 0, "const string at" ) == "foo";
+
+    GenericContainer gc_vector;
+    gc_vector.set_vector( 2 );
+    gc_vector[0].set_int( 10 );
+    gc_vector[1].set_string( "hello" );
+    GenericContainer const & cgc_vector = gc_vector;
+    passed &= gc_vector.get_gc_at( 1 ).get_string() == "hello";
+    passed &= cgc_vector.get_gc_at( 0, "const gc at" ).get_int() == 10;
+
+    int ptr_target = 321;
+    GenericContainer gc_pointer_vector;
+    gc_pointer_vector.set_vector( 1 );
+    gc_pointer_vector[0].set_pointer( &ptr_target );
+    int &               ptr_ref = gc_pointer_vector.get_pointer_at<int>( 0 );
+    GenericContainer const & cgc_pointer_vector = gc_pointer_vector;
+    int * const         ptr_val = cgc_pointer_vector.get_pointer_at<int *>( 0 );
+    ptr_ref                     = 654;
+    passed &= ptr_target == 654;
+    passed &= ptr_val == &ptr_target;
+
+    GenericContainer gc_mat_int;
+    gc_mat_int.set_mat_int( 2, 2 );
+    gc_mat_int.get_int_at( 1, 0 ) = 7;
+    GenericContainer const & cgc_mat_int = gc_mat_int;
+    passed &= cgc_mat_int.get_int_at( 1, 0, "const mat int" ) == 7;
+    passed &= gc_mat_int.get_numRows() == 2;
+    passed &= gc_mat_int.get_numCols() == 2;
+
+    GenericContainer gc_mat_long;
+    gc_mat_long.set_mat_long( 2, 2 );
+    gc_mat_long.get_long_at( 0, 1 ) = 9;
+    GenericContainer const & cgc_mat_long = gc_mat_long;
+    passed &= cgc_mat_long.get_long_at( 0, 1, "const mat long" ) == 9;
+
+    GenericContainer gc_mat_real;
+    gc_mat_real.set_mat_real( 2, 2 );
+    gc_mat_real.get_real_at( 1, 1 ) = 4.5;
+    GenericContainer const & cgc_mat_real = gc_mat_real;
+    passed &= abs( cgc_mat_real.get_real_at( 1, 1, "const mat real" ) - 4.5 ) < 1e-12;
+
+    GenericContainer gc_mat_complex;
+    gc_mat_complex.set_mat_complex( 2, 2 );
+    gc_mat_complex.get_complex_at( 0, 1 ) = { 8.0, 9.0 };
+    GenericContainer const & cgc_mat_complex = gc_mat_complex;
+    passed &= abs( cgc_mat_complex.get_complex_at( 0, 1, "const mat complex" ).imag() - 9.0 ) < 1e-12;
+
+    print_test_case("indexed getters / get_pointer_at()", passed);
+    all_passed &= passed;
+  }
+
+  // Test 5: related matrix helpers, TOML and deprecated read wrappers
+  {
+    mat_real_type mat( 2, 3 );
+    mat( 0, 0 ) = 1.0;
+    mat( 1, 0 ) = 2.0;
+    mat( 0, 1 ) = 3.0;
+    mat( 1, 1 ) = 4.0;
+    mat( 0, 2 ) = 5.0;
+    mat( 1, 2 ) = 6.0;
+
+    vector<real_type> col;
+    vector<real_type> row;
+    mat.getColumn( 1, col );
+    mat.getRow( 1, row );
+    string info = mat.info();
+
+    GenericContainer toml_gc;
+    toml_gc.set_map();
+    toml_gc["id"].set_int( 7 );
+    toml_gc["name"].set_string( "toml" );
+    string toml = toml_gc.to_toml();
+
+    GenericContainer parsed_toml;
+    bool             parsed_ok = parsed_toml.from_toml( toml );
+
+    string data_stream = "A B\n1 2\n3 4\n";
+    istringstream iss( data_stream );
+    GenericContainer formatted_alias;
+    formatted_alias.readFormattedData( iss, "#", " " );
+
+    string file_name = "gc_readFormattedData2_alias.txt";
+    ofstream out( file_name );
+    out << "#! scale = 2\n";
+    out << "X Y\n";
+    out << "5 6\n";
+    out.close();
+
+    GenericContainer formatted_alias2;
+    GenericContainer params;
+    formatted_alias2.readFormattedData2( file_name.c_str(), "#", " \t", &params );
+    std::remove( file_name.c_str() );
+
+    bool passed = col.size() == 2;
+    passed &= abs( col[0] - 3.0 ) < 1e-12;
+    passed &= abs( col[1] - 4.0 ) < 1e-12;
+    passed &= row.size() == 3;
+    passed &= abs( row[0] - 2.0 ) < 1e-12;
+    passed &= abs( row[2] - 6.0 ) < 1e-12;
+    passed &= !info.empty();
+    passed &= info.find( "rows" ) != string::npos || info.find( "cols" ) != string::npos ||
+              info.find( "2" ) != string::npos;
+    passed &= parsed_ok;
+    passed &= parsed_toml["id"].get_int() == 7;
+    passed &= parsed_toml["name"].get_string() == "toml";
+    passed &= formatted_alias.exists( "headers" );
+    passed &= formatted_alias.exists( "data" );
+    passed &= formatted_alias2.exists( "headers" );
+    passed &= formatted_alias2.exists( "data" );
+    passed &= params.exists( "scale" );
+    passed &= abs( params["scale"].get_number() - 2.0 ) < 1e-12;
+
+    print_test_case("related helpers / TOML / readFormattedData*", passed);
+    all_passed &= passed;
+  }
+
+  print_test_case("API Surface Systematic Overall", all_passed);
 }
 
 void test_type_compatibility()
@@ -2664,7 +3323,7 @@ void test_type_compatibility()
     
     real_type retrieved = gc.get_real();
     // Verifica che la precisione sia preservata (entro i limiti di float)
-    passed &= (abs(retrieved - float_val) < 1e-6);
+    passed &= (abs(retrieved - static_cast<real_type>( float_val )) < 1e-6);
     
     // Test complex<float> → complex<double>
     complex<float> cfloat(1.0f, 2.0f);
@@ -2808,6 +3467,7 @@ void test_performance_specific()
   print_header("TEST PERFORMANCE: Specific Operations Benchmark");
 
   cout << "  ⚡ Running specific performance benchmarks...\n";
+  bool all_passed = true;
 
   // Test 1: Performance di collapse su strutture grandi
   {
@@ -2822,7 +3482,7 @@ void test_performance_specific()
     
     auto mid = chrono::high_resolution_clock::now();
     
-    gc.collapse();  // Dovrebbe creare una matrice 1000×500
+    gc.collapse();  // Produce una matrice 500×1000: ogni sottovettore e` una colonna
     
     auto end = chrono::high_resolution_clock::now();
     
@@ -2830,16 +3490,17 @@ void test_performance_specific()
     auto collapse_time = chrono::duration_cast<chrono::microseconds>(end - mid).count();
     
     cout << "  📊 Collapse performance:\n";
-    cout << "    • Created 1000×500 nested structure: " << creation_time << " μs\n";
+    cout << "    • Created 1000 outer vectors of length 500: " << creation_time << " μs\n";
     cout << "    • Collapse to matrix: " << collapse_time << " μs\n";
     
     bool passed = (gc.get_type() == GC_type::MAT_REAL);
     if (passed) {
       mat_real_type& mat = gc.get_mat_real();
-      passed = (mat.num_rows() == 1000 && mat.num_cols() == 500);
+      passed = (mat.num_rows() == 500 && mat.num_cols() == 1000);
     }
     
     print_test_case("Large structure collapse", passed);
+    all_passed &= passed;
   }
 
   // Test 2: Performance promozione di vettori grandi
@@ -2870,6 +3531,7 @@ void test_performance_specific()
     passed &= (gc.get_vec_real().size() == 1000000);
     
     print_test_case("Large vector promotion", passed);
+    all_passed &= passed;
   }
 
   // Test 3: Memory footprint per diversi tipi
@@ -2943,9 +3605,12 @@ void test_performance_specific()
     
     bool passed = gc.compare_content(restored, "Performance test").empty();
     print_test_case("Serialization performance test", passed);
+    all_passed &= passed;
   }
 
   cout << "  ✅ Performance tests completed\n";
+  print_test_case("Specific Performance Overall", all_passed);
+  if ( !all_passed ) throw runtime_error("Specific performance tests failed");
 }
 // ===========================================================================
 // Main Test Runner
@@ -2978,7 +3643,8 @@ int main()
   cout << " 18. Edge Cases\n";
   cout << " 19. Static & Utility\n";
   cout << " 20. Type Compatibility\n";
-  cout << " 21. Specific Performance\n";
+  cout << " 21. API Surface Coverage\n";
+  cout << " 22. Specific Performance\n";
 
   try
   {
@@ -3004,6 +3670,7 @@ int main()
     test_edge_cases();
     test_static_and_utility();
     test_type_compatibility();
+    test_api_surface_systematic();
     test_performance_specific();
 
     cout << "\n" << repeat( 60, "◆" ) << "\n";

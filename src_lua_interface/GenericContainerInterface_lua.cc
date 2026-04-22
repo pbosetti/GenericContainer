@@ -87,7 +87,8 @@ namespace GC_namespace
 
   static inline bool isInteger64( real_type x )
   {
-    return isZero( x - static_cast<int64_t>( floor( x ) ) );
+    real_type const xf = floor( x );
+    return isZero( x - xf );
   }
 
   /*
@@ -366,11 +367,12 @@ namespace GC_namespace
     lua_State *& L = *( reinterpret_cast<lua_State **>( &void_L ) );
 
     // args must be of type MAP
-    string_view              fname = fun_io( "function" ).get_string();
+    string_type const        fname_str{ fun_io( "function" ).get_string() };
+    string_view              fname = fname_str;
     GenericContainer const & args  = fun_io( "args" );
 
     // push functions and arguments
-    lua_getglobal( L, fname.data() );  // function to be called
+    lua_getglobal( L, fname_str.c_str() );  // function to be called
     GC_to_lua( L, args );
 
     /* do the call (1 arguments, 1 result) */

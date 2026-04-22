@@ -41,7 +41,8 @@ namespace GC_namespace
 
   bool GenericContainer::from_file( string_view file_name )
   {
-    std::ifstream file( file_name.data() );
+    string_type const path{ file_name };
+    std::ifstream     file( path );
     if ( !file.is_open() ) return false;
 
     // Utility to check file extension

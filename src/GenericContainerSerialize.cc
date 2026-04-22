@@ -28,26 +28,31 @@
 #include "GenericContainer/GenericContainer.hh"
 #include "GenericContainer/GenericContainerLibs.hh"
 #include <cstring>
+#include <cstdint>
 
 namespace GC_namespace
 {
 
   using std::memcpy;
 
-  static constexpr char msg[]{
+  static constexpr char serialize_msg[]{
     "GenericContainer::serialize, memory exausted use method mem_size() to estimate memory requirement"
+  };
+
+  static constexpr char deserialize_msg[]{
+    "GenericContainer::de_serialize, buffer exhausted or corrupted input"
   };
 
   static int32_t int8_to_buffer( int8_t in, uint8_t * buffer, int32_t const available )
   {
-    GC_ASSERT( available >= 1, msg );
-    buffer[0] = *reinterpret_cast<uint8_t *>( &in );
+    GC_ASSERT( available >= 1, serialize_msg );
+    buffer[0] = static_cast<uint8_t>( in );
     return sizeof( int8_t );
   }
 
   static int32_t uint32_to_buffer( uint32_t in, uint8_t * buffer, int32_t const available )
   {
-    GC_ASSERT( available >= 4, msg );
+    GC_ASSERT( available >= 4, serialize_msg );
     buffer[0] = static_cast<uint8_t>( in & 0xFF );
     in >>= 8;
     buffer[1] = static_cast<uint8_t>( in & 0xFF );
@@ -60,12 +65,14 @@ namespace GC_namespace
 
   static int32_t int32_to_buffer( int32_t in, uint8_t * buffer, int32_t const available )
   {
-    return uint32_to_buffer( *reinterpret_cast<uint32_t *>( &in ), buffer, available );
+    uint32_t tmp;
+    memcpy( &tmp, &in, sizeof( tmp ) );
+    return uint32_to_buffer( tmp, buffer, available );
   }
 
   static int32_t uint64_to_buffer( uint64_t in, uint8_t * buffer, int32_t const available )
   {
-    GC_ASSERT( available >= 8, msg );
+    GC_ASSERT( available >= 8, serialize_msg );
     buffer[0] = static_cast<uint8_t>( in & 0xFF );
     in >>= 8;
     buffer[1] = static_cast<uint8_t>( in & 0xFF );
@@ -86,31 +93,31 @@ namespace GC_namespace
 
   static int32_t int64_to_buffer( int64_t in, uint8_t * buffer, int32_t const available )
   {
-    return uint64_to_buffer( *reinterpret_cast<uint64_t *>( &in ), buffer, available );
+    uint64_t tmp;
+    memcpy( &tmp, &in, sizeof( tmp ) );
+    return uint64_to_buffer( tmp, buffer, available );
   }
 
   static int32_t double_to_buffer( double const in, uint8_t * buffer, int32_t const available )
   {
-    union
-    {
-      double   f;
-      uint64_t i;
-    } tmp;
-    tmp.f = in;
-    uint64_to_buffer( tmp.i, buffer, available );
+    uint64_t tmp;
+    memcpy( &tmp, &in, sizeof( tmp ) );
+    uint64_to_buffer( tmp, buffer, available );
     return sizeof( double );
   }
 
   /* ---------------------------------------------------------------------------- */
 
-  static int32_t buffer_to_uint8( uint8_t const * buffer, uint8_t * out )
+  static int32_t buffer_to_uint8( uint8_t const * buffer, int32_t const available, uint8_t * out )
   {
+    GC_ASSERT( available >= 1, deserialize_msg );
     *out = buffer[0];
     return sizeof( uint8_t );
   }
 
-  static int32_t buffer_to_uint32( uint8_t const * buffer, uint32_t * out )
+  static int32_t buffer_to_uint32( uint8_t const * buffer, int32_t const available, uint32_t * out )
   {
+    GC_ASSERT( available >= 4, deserialize_msg );
     uint32_t const tmp0{ buffer[0] };
     uint32_t const tmp1{ buffer[1] };
     uint32_t const tmp2{ buffer[2] };
@@ -119,13 +126,17 @@ namespace GC_namespace
     return sizeof( int32_t );
   }
 
-  static int32_t buffer_to_int32( uint8_t const * buffer, int32_t * out )
+  static int32_t buffer_to_int32( uint8_t const * buffer, int32_t const available, int32_t * out )
   {
-    return buffer_to_uint32( buffer, reinterpret_cast<uint32_t *>( out ) );
+    uint32_t tmp;
+    int32_t  nb{ buffer_to_uint32( buffer, available, &tmp ) };
+    memcpy( out, &tmp, sizeof( tmp ) );
+    return nb;
   }
 
-  static int32_t buffer_to_uint64( uint8_t const * buffer, uint64_t * out )
+  static int32_t buffer_to_uint64( uint8_t const * buffer, int32_t const available, uint64_t * out )
   {
+    GC_ASSERT( available >= 8, deserialize_msg );
     uint64_t const tmp0{ buffer[0] };
     uint64_t const tmp1{ buffer[1] };
     uint64_t const tmp2{ buffer[2] };
@@ -139,21 +150,20 @@ namespace GC_namespace
     return sizeof( uint64_t );
   }
 
-  static int32_t buffer_to_int64( uint8_t const * buffer, int64_t * out )
+  static int32_t buffer_to_int64( uint8_t const * buffer, int32_t const available, int64_t * out )
   {
-    return buffer_to_uint64( buffer, reinterpret_cast<uint64_t *>( out ) );
+    uint64_t tmp;
+    int32_t  nb{ buffer_to_uint64( buffer, available, &tmp ) };
+    memcpy( out, &tmp, sizeof( tmp ) );
+    return nb;
   }
 
-  static int32_t buffer_to_double( uint8_t const * buffer, double * out )
+  static int32_t buffer_to_double( uint8_t const * buffer, int32_t const available, double * out )
   {
-    union
-    {
-      double   f;
-      uint64_t i;
-    } tmp;
-    buffer_to_uint64( buffer, &tmp.i );
-    *out = tmp.f;
-    return sizeof( double );
+    uint64_t tmp;
+    int32_t  nb{ buffer_to_uint64( buffer, available, &tmp ) };
+    memcpy( out, &tmp, sizeof( tmp ) );
+    return nb;
   }
 
   int32_t GenericContainer::mem_size() const
@@ -265,8 +275,8 @@ namespace GC_namespace
         nb = int32_to_buffer( sz, buffer, available );
         buffer += nb;
         available -= nb;
-        GC_ASSERT( sz <= available, msg );
-        memcpy( buffer, &m_data.s->front(), static_cast<size_t>( sz ) );
+        GC_ASSERT( sz <= available, serialize_msg );
+        memcpy( buffer, m_data.s->c_str(), static_cast<size_t>( sz ) );
         buffer += sz;
         available -= sz;
         break;
@@ -416,8 +426,8 @@ namespace GC_namespace
           nb = int32_to_buffer( sz, buffer, available );
           buffer += nb;
           available -= nb;
-          GC_ASSERT( sz <= available, msg );
-          memcpy( buffer, &s.front(), static_cast<size_t>( sz ) );
+          GC_ASSERT( sz <= available, serialize_msg );
+          memcpy( buffer, s.c_str(), static_cast<size_t>( sz ) );
           buffer += sz;
           available -= sz;
         }
@@ -443,8 +453,8 @@ namespace GC_namespace
           nb = int32_to_buffer( sz, buffer, available );
           buffer += nb;
           available -= nb;
-          GC_ASSERT( sz <= available, msg );
-          memcpy( buffer, &fst.front(), static_cast<size_t>( sz ) );
+          GC_ASSERT( sz <= available, serialize_msg );
+          memcpy( buffer, fst.c_str(), static_cast<size_t>( sz ) );
           buffer += sz;
           available -= sz;
           nb = snd.serialize( available, buffer );
@@ -471,7 +481,7 @@ namespace GC_namespace
     this->clear();
 
     int32_t nr, nc, i32;
-    nbyte = nb = buffer_to_int32( buffer, &i32 );
+    nbyte = nb = buffer_to_int32( buffer, buffer_dim, &i32 );
     buffer += nb;
 
     switch ( static_cast<TypeAllowed>( i32 ) )
@@ -480,214 +490,241 @@ namespace GC_namespace
       case GC_type::BOOL:
         m_data_type = GC_type::BOOL;
         uint8_t b;
-        nb = buffer_to_uint8( buffer, &b );
+        nb = buffer_to_uint8( buffer, buffer_dim - nbyte, &b );
         buffer += nb;
         nbyte += nb;
         m_data.b = b > 0;
         break;
       case GC_type::INTEGER:
         m_data_type = GC_type::INTEGER;
-        nb          = buffer_to_int32( buffer, &m_data.i );
+        nb          = buffer_to_int32( buffer, buffer_dim - nbyte, &m_data.i );
         buffer += nb;
         nbyte += nb;
         break;
       case GC_type::LONG:
         m_data_type = GC_type::LONG;
-        nb          = buffer_to_int64( buffer, &m_data.l );
+        nb          = buffer_to_int64( buffer, buffer_dim - nbyte, &m_data.l );
         buffer += nb;
         nbyte += nb;
         break;
       case GC_type::REAL:
         m_data_type = GC_type::REAL;
-        nb          = buffer_to_double( buffer, &m_data.r );
+        nb          = buffer_to_double( buffer, buffer_dim - nbyte, &m_data.r );
         buffer += nb;
         nbyte += nb;
         break;
-      case GC_type::POINTER: break;
-      case GC_type::STRING:
-        nb = buffer_to_int32( buffer, &i32 );
+      case GC_type::POINTER:
+      {
+        m_data_type = GC_type::POINTER;
+        int64_t ptr_value{ 0 };
+        nb = buffer_to_int64( buffer, buffer_dim - nbyte, &ptr_value );
         buffer += nb;
         nbyte += nb;
+        m_data.p = reinterpret_cast<pointer_type>( static_cast<intptr_t>( ptr_value ) );
+        break;
+      }
+      case GC_type::STRING:
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
+        buffer += nb;
+        nbyte += nb;
+        GC_ASSERT( i32 > 0, "GenericContainer::de_serialize, invalid string length" );
+        GC_ASSERT( i32 <= buffer_dim - nbyte, deserialize_msg );
         allocate_string();
-        *m_data.s = reinterpret_cast<char const *>( buffer );
+        *m_data.s = string_type( reinterpret_cast<char const *>( buffer ), static_cast<size_t>( i32 - 1 ) );
         buffer += i32;
         nbyte += i32;
         break;
       case GC_type::COMPLEX:
         allocate_complex();
-        nb = buffer_to_double( buffer, &bf );
+        nb = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
         m_data.c->real( bf );
         buffer += nb;
         nbyte += nb;
-        nb = buffer_to_double( buffer, &bf );
+        nb = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
         m_data.c->imag( bf );
         buffer += nb;
         nbyte += nb;
         break;
-      case GC_type::VEC_POINTER: break;
-      case GC_type::VEC_BOOL:
-        nb = buffer_to_int32( buffer, &i32 );
+      case GC_type::VEC_POINTER:
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        allocate_vec_pointer( static_cast<unsigned>( i32 ) );
+        for ( auto & p : *m_data.v_p )
+        {
+          int64_t ptr_value{ 0 };
+          sz = buffer_to_int64( buffer, buffer_dim - nbyte, &ptr_value );
+          p  = reinterpret_cast<pointer_type>( static_cast<intptr_t>( ptr_value ) );
+          buffer += sz;
+          nbyte += sz;
+        }
+        break;
+      case GC_type::VEC_BOOL:
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
+        buffer += nb;
+        nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
         allocate_vec_bool( 0 );
         m_data.v_b->reserve( static_cast<size_t>( i32 ) );
         for ( int32_t i = 0; i < i32; ++i )
         {
           uint8_t i8;
-          buffer_to_uint8( buffer, &i8 );
-          ++nb;
-          ++buffer;
-          ++nbyte;
+          sz = buffer_to_uint8( buffer, buffer_dim - nbyte, &i8 );
+          buffer += sz;
+          nbyte += sz;
           m_data.v_b->push_back( i8 > 0 );
         }
         break;
       case GC_type::VEC_INTEGER:
-        nb = buffer_to_int32( buffer, &i32 );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
         allocate_vec_int( static_cast<unsigned>( i32 ) );
         for ( auto & i : *m_data.v_i )
         {
-          sz = buffer_to_int32( buffer, &i );
-          nb += sz;
+          sz = buffer_to_int32( buffer, buffer_dim - nbyte, &i );
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::VEC_LONG:
-        nb = buffer_to_int32( buffer, &i32 );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
         allocate_vec_long( static_cast<unsigned>( i32 ) );
         for ( auto & i : *m_data.v_l )
         {
-          sz = buffer_to_int64( buffer, &i );
-          nb += sz;
+          sz = buffer_to_int64( buffer, buffer_dim - nbyte, &i );
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::VEC_REAL:
-        nb = buffer_to_int32( buffer, &i32 );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
         allocate_vec_real( static_cast<unsigned>( i32 ) );
         for ( auto & r : *m_data.v_r )
         {
-          sz = buffer_to_double( buffer, &r );
-          nb += sz;
+          sz = buffer_to_double( buffer, buffer_dim - nbyte, &r );
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::VEC_COMPLEX:
-        nb = buffer_to_int32( buffer, &i32 );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
         allocate_vec_complex( static_cast<unsigned>( i32 ) );
         for ( auto & c : *m_data.v_c )
         {
-          sz = buffer_to_double( buffer, &bf );
+          sz = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
           c.real( bf );
-          nb += sz;
           buffer += sz;
           nbyte += sz;
-          sz = buffer_to_double( buffer, &bf );
+          sz = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
           c.imag( bf );
-          nb += sz;
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::MAT_INTEGER:
-        nb = buffer_to_int32( buffer, &nr );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nr );
         buffer += nb;
         nbyte += nb;
-        nb = buffer_to_int32( buffer, &nc );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
         allocate_mat_int( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
         for ( auto & i : *m_data.m_i )
         {
-          sz = buffer_to_int32( buffer, &i );
-          nb += sz;
+          sz = buffer_to_int32( buffer, buffer_dim - nbyte, &i );
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::MAT_LONG:
-        nb = buffer_to_int32( buffer, &nr );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nr );
         buffer += nb;
         nbyte += nb;
-        nb = buffer_to_int32( buffer, &nc );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
         allocate_mat_long( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
         for ( auto & i : *m_data.m_l )
         {
-          sz = buffer_to_int64( buffer, &i );
-          nb += sz;
+          sz = buffer_to_int64( buffer, buffer_dim - nbyte, &i );
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::MAT_REAL:
-        nb = buffer_to_int32( buffer, &nr );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nr );
         buffer += nb;
         nbyte += nb;
-        nb = buffer_to_int32( buffer, &nc );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
         allocate_mat_real( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
         for ( auto & r : *m_data.m_r )
         {
-          sz = buffer_to_double( buffer, &r );
-          nb += sz;
+          sz = buffer_to_double( buffer, buffer_dim - nbyte, &r );
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::MAT_COMPLEX:
-        nb = buffer_to_int32( buffer, &nr );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nr );
         buffer += nb;
         nbyte += nb;
-        nb = buffer_to_int32( buffer, &nc );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
         allocate_mat_complex( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
         for ( auto & c : *m_data.m_c )
         {
-          sz = buffer_to_double( buffer, &bf );
+          sz = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
           c.real( bf );
-          nb += sz;
           buffer += sz;
           nbyte += sz;
-          sz = buffer_to_double( buffer, &bf );
+          sz = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
           c.imag( bf );
-          nb += sz;
           buffer += sz;
           nbyte += sz;
         }
         break;
       case GC_type::VEC_STRING:
-        nb = buffer_to_int32( buffer, &i32 );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
         allocate_vec_string( static_cast<unsigned>( i32 ) );
         for ( auto & s : *m_data.v_s )
         {
-          nb = buffer_to_int32( buffer, &i32 );
+          nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
           buffer += nb;
           nbyte += nb;
-          s = reinterpret_cast<char const *>( buffer );
+          GC_ASSERT( i32 > 0, "GenericContainer::de_serialize, invalid string length" );
+          GC_ASSERT( i32 <= buffer_dim - nbyte, deserialize_msg );
+          s = string_type( reinterpret_cast<char const *>( buffer ), static_cast<size_t>( i32 - 1 ) );
           buffer += i32;
           nbyte += i32;
         }
         break;
       case GC_type::VECTOR:
-        nb = buffer_to_int32( buffer, &i32 );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
         allocate_vector( static_cast<unsigned>( i32 ) );
         for ( auto & S : *m_data.v )
         {
@@ -697,17 +734,20 @@ namespace GC_namespace
         }
         break;
       case GC_type::MAP:
-        nb = buffer_to_int32( buffer, &i32 );
+        nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         nr = i32;
         buffer += nb;
         nbyte += nb;
+        GC_ASSERT( nr >= 0, "GenericContainer::de_serialize, invalid map size" );
         allocate_map();
         for ( int32_t i = 0; i < nr; ++i )
         {
-          nb = buffer_to_int32( buffer, &i32 );
+          nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
           buffer += nb;
           nbyte += nb;
-          string_type key = reinterpret_cast<char const *>( buffer );
+          GC_ASSERT( i32 > 0, "GenericContainer::de_serialize, invalid key length" );
+          GC_ASSERT( i32 <= buffer_dim - nbyte, deserialize_msg );
+          string_type key( reinterpret_cast<char const *>( buffer ), static_cast<size_t>( i32 - 1 ) );
           buffer += i32;
           nbyte += i32;
           // std::cout << "key[" << i << "] = " << key << '\n';

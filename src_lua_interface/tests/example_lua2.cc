@@ -24,6 +24,7 @@
  */
 
 #include "GenericContainer/GenericContainerInterface_lua.hh"
+#include <cmath>
 #include <iostream>
 #include <fstream>
 
@@ -86,6 +87,7 @@ static void gc_set( GenericContainer & gc )
 
 int main()
 {
+  int status = 0;
   cout << "\n\n\n"
        << "***********************\n"
        << "   lua example N.2     \n"
@@ -95,6 +97,9 @@ int main()
   {
     GenericContainer gc;
     LuaInterpreter   lua;
+    char const *     script = "test_print.lua";
+    ifstream         probe( script );
+    if ( !probe.good() ) script = "./src_lua_interface/tests/test_print.lua";
 
     gc.clear();
     gc_set( gc );
@@ -104,16 +109,19 @@ int main()
 
     cout << "\n\n\n\nConverted in lua\n\n";
     lua.GC_to_global( gc, "DATA" );
-    lua.do_file( "test_print.lua" );
+    lua.do_file( script );
   }
   catch ( std::exception & exc )
   {
     cout << exc.what() << '\n';
+    status = 1;
   }
   catch ( ... )
   {
     cout << "Unknonwn error\n";
+    status = 1;
   }
 
   cout << "ALL DONE!\n\n\n\n";
+  return status;
 }
