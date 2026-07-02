@@ -274,6 +274,8 @@ if ( UTILS_ENABLE_TESTS AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR )
   )
   FetchContent_MakeAvailable( Expressionist )
 
+  add_subdirectory( tests )
+
   set( EXELISTBIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin" )
   set( EXELISTCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_tests" )
 

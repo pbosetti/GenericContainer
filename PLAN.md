@@ -16,6 +16,9 @@ The core of GenericContainer (~14k lines: `GenericContainer.hh` 5071 + `GenericC
 6. **`unsigned` size truncation** (`get_num_elements`, `operator[]`, `set_*` sizes) for containers >4G elements.
 7. **Serialization**: `int32_t` offsets (2 GB limit, silent truncation in `mem_size`), no pre-check of matrix `nr*nc` vs remaining buffer (giant alloc before failing).
 8. Minor: `GC_ASSERT` builds an ostringstream per call site; `exception(ost.str().data())` sloppiness; `using TypeAllowed = enum class ...`, `using string = string;` self-alias; Windows `#ifdef` forks for `simple_data`/`get_pointer`; redundant recursive pre-clear in `clear()`; duplicate `reserve()` calls in Promote.
+9. **`promote_to_vector` scalar cases read repurposed union storage** (found by Phase 1 tests): `set_vector(1); (*this)[0] = m_data.i;` reads the union member *after* it became the vector pointer — garbage values for arithmetic scalars, use-after-free for STRING/COMPLEX (GenericContainerPromote.cc ~1876-1925). The VEC_* cases save the pointer first and are correct. → Fixed by Phase 2; test `[promote][newbehavior]` unskips.
+10. **Union type confusion in matrix promotions** (found by Phase 1 tests): `promote_to_mat_int` (VEC_BOOL/VEC_INTEGER cases, lines ~1546/1555), `promote_to_mat_long` (VEC_BOOL, ~1608), `promote_to_mat_complex` (all four vec cases, ~1802-1829) write elements through `m_data.m_r` (matrix-of-real) while the union holds a different matrix type — copy-paste from `promote_to_mat_real`, UB. → Fixed by Phase 2; test `[promote][newbehavior]` unskips.
+11. **`de_serialize` silently ignores an invalid type tag** (no `default` in the tag switch) — corrupted input yields an untouched/empty container with no error. → Fixed in Phase 5; test `[serialize][newbehavior]` unskips.
 
 ## Design
 
