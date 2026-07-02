@@ -1,5 +1,7 @@
 # Generic Container
 
+[![CI](https://github.com/pbosetti/GenericContainer/actions/workflows/ci.yml/badge.svg)](https://github.com/pbosetti/GenericContainer/actions/workflows/ci.yml)
+
 `GenericContainer` is a `C++` class with permit to store eterogeneous
 data:
 
