@@ -84,6 +84,95 @@ rake run       # for linux/OSX
 rake run_win   # for windows
 ```
 
+## JSON
+
+`GenericContainer` has a built-in interface to exchange data with JSON.
+To use the interface include
+
+```cpp
+#include "GenericContainer/GenericContainerInterface_json.hh"
+```
+
+The interface is compiled as part of the library, so no extra linking step
+is needed. It converts a `GenericContainer` to/from JSON text through
+streams, strings or files:
+
+```cpp
+GenericContainer gc;
+gc["one"]  = 1;
+gc["two"]  = true;
+gc["five"].set_vec_int(10);
+
+std::string json_text;
+GC_to_JSON( gc, json_text );  // GenericContainer -> JSON string
+
+GenericContainer gc2;
+JSON_to_GC( json_text, gc2 ); // JSON string -> GenericContainer
+```
+
+### `nlohmann::json` support
+
+For projects already using [`nlohmann::json`](https://github.com/nlohmann/json),
+an opt-in adapter is available as a single, standalone header:
+
+```cpp
+#include "GenericContainer/GenericContainerInterface_nlohmann.hh"
+```
+
+Including this header (and only this header) enables conversion through the
+standard `adl_serializer` customization point, so a `GenericContainer`
+converts to/from `nlohmann::json` like any other supported type:
+
+```cpp
+GenericContainer gc; gc["a"] = 42;
+nlohmann::json j = gc;                            // to_json
+GenericContainer gc2 = j.get<GenericContainer>();  // from_json
+```
+
+`nlohmann::json` is header-only, and so is this adapter: `GenericContainer`
+itself has no hard dependency on it -- only translation units that include
+this header need `nlohmann/json.hpp` on their include path (e.g. fetched
+via CMake `FetchContent`). Homogeneous numeric JSON arrays are decoded
+directly into `vec_int_type`/`vec_real_type` (and, when possible, matrices)
+rather than a generic vector of `GenericContainer`, so downstream calls
+like `copyto_vec_real` get the fast representation.
+
+### Solving math expressions with Expressionist
+
+JSON data may contain algebraic expressions stored as tagged strings, e.g.
+`"$a + b"`. [`Expressionist`](https://github.com/pbosetti/Expressionist) is
+a header-only C++20 library that evaluates such expressions in place on a
+`nlohmann::json` object -- variables are simply other keys of the same JSON
+tree, resolved in dependency order. There is no direct `GenericContainer`
+API for this yet, but combined with the `nlohmann::json` adapter above it
+is a three-step conversion:
+
+```cpp
+#include "GenericContainer/GenericContainerInterface_nlohmann.hh"
+#include <expressionist.hpp>
+
+std::string text = R"({
+  "a": 1,
+  "b": 2,
+  "c": "$a + b",
+  "g": "$sin(pi / 3) * b"
+})";
+
+Expressionist::Expressionist ex( text );
+ex.evaluate();                                        // resolve the "$..." expressions in place
+GenericContainer gc = ex.object().get<GenericContainer>(); // -> GenericContainer via adl_serializer
+
+cout << gc["c"].get_int()  << '\n'; // 3
+cout << gc["g"].get_real() << '\n'; // 1.732...
+```
+
+`Expressionist` is fetched via CMake `FetchContent` for this project's own
+examples/tests (pinned to a commit, since upstream publishes no tags); it
+requires a C++20 compiler, but only for translation units that link it --
+it does not affect the C++17 standard used elsewhere in `GenericContainer`.
+Consumers who want this combination need to `FetchContent` `Expressionist`
+themselves, the same way they would for `nlohmann::json`.
+
 ## Lua Support
 
 `GenericContainer` has an interfacing to exchange data with Lua.

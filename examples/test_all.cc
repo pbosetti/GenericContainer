@@ -23,6 +23,7 @@
  */
 
 #include "GenericContainer.hh"
+#include <algorithm>
 #include <cstdio>
 #include <chrono>
 #include <fstream>
@@ -3346,7 +3347,7 @@ void test_type_compatibility()
     vector<pair<string, GenericContainer>> test_cases = {
       {"bool", GenericContainer(true)},
       {"int", GenericContainer(42)},
-      {"long", GenericContainer(1234567890123LL)},
+      {"long", GenericContainer(GenericContainer::long_type(1234567890123LL))},
       {"real", GenericContainer(3.141592653589793)},
       {"complex", GenericContainer(complex<double>(1.0, 2.0))},
       {"string", GenericContainer("Hello, World!")}

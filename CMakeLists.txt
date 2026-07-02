@@ -18,6 +18,13 @@ project( GenericContainer )
 # add_subdirectory() it. Pinned to a commit since upstream publishes no tags;
 # override locally for development with -DFETCHCONTENT_SOURCE_DIR_CMAKE_UTILS=<path>.
 include( FetchContent )
+# CMP0135 (extract URL-fetched archives with the extraction time as the timestamp,
+# rather than preserving the timestamp recorded in the archive) only exists from
+# CMake 3.24 on; guard it so older CMake (e.g. the 3.22 shipped by Ubuntu 22.04) does
+# not fail with "Policy CMP0135 is not known".
+if ( POLICY CMP0135 )
+  cmake_policy( SET CMP0135 NEW )
+endif()
 FetchContent_Declare(
   cmake_utils
   GIT_REPOSITORY https://github.com/ebertolazzi/cmake_utils.git
@@ -228,6 +235,39 @@ if ( UTILS_ENABLE_TESTS AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR )
 
   enable_testing()
 
+  # nlohmann/json is only needed to build this project's own examples/tests exercising
+  # include/GenericContainer/GenericContainerInterface_nlohmann.hh (an opt-in header);
+  # GenericContainer itself has no hard dependency on it. Fetched as the "include.zip"
+  # release asset (headers only, no CMakeLists.txt) rather than the git repo, which is
+  # huge (full test suite + history), so the nlohmann_json::nlohmann_json target is
+  # defined by hand below.
+  FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/include.zip
+  )
+  FetchContent_MakeAvailable( nlohmann_json )
+  add_library( nlohmann_json INTERFACE )
+  add_library( nlohmann_json::nlohmann_json ALIAS nlohmann_json )
+  target_include_directories(
+    nlohmann_json INTERFACE
+    "$<BUILD_INTERFACE:${nlohmann_json_SOURCE_DIR}/include>"
+  )
+
+  # Expressionist evaluates algebraic expressions embedded as tagged strings ("$...")
+  # in nlohmann::json fields -- how we'll solve math expressions possibly stored in
+  # GenericContainer's JSON. It's a small single-header repo (unlike nlohmann/json,
+  # no huge history/test data), so a plain git fetch is fine here; its own
+  # CMakeLists.txt already defines Expressionist::Expressionist (requires C++20,
+  # which CMake propagates only to whatever links it) and fetches nlohmann_json
+  # itself, reusing the nlohmann_json::nlohmann_json target declared above instead of
+  # populating a second copy. Pinned to a commit since upstream publishes no tags.
+  FetchContent_Declare(
+    Expressionist
+    GIT_REPOSITORY https://github.com/pbosetti/Expressionist.git
+    GIT_TAG        fd5479eec349047edc97fd7fe42d24a21f749912
+  )
+  FetchContent_MakeAvailable( Expressionist )
+
   set( EXELISTBIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin" )
   set( EXELISTCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_tests" )
 
@@ -247,7 +287,7 @@ if ( UTILS_ENABLE_TESTS AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR )
   add_custom_target( "${PROJECT_NAME}_all_tests" ALL )
 
   set( EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/bin )
-  set( LIBS ${UTILS_NAMESPACE}_${PROJECT_NAME}_Static ${UTILS_NAMESPACE}_Lua_Static ${CMAKE_DL_LIBS} )
+  set( LIBS ${UTILS_NAMESPACE}_${PROJECT_NAME}_Static ${UTILS_NAMESPACE}_Lua_Static ${CMAKE_DL_LIBS} nlohmann_json::nlohmann_json )
 
   foreach( S ${EXELISTCPP} )
     add_executable( ${S} ${CMAKE_CURRENT_SOURCE_DIR}/examples/${S}.cc )
