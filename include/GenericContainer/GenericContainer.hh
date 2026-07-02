@@ -40,6 +40,9 @@
 #include <complex>
 #include <map>
 #include <deque>
+#include <memory>
+#include <utility>
+#include <variant>
 #include <vector>
 #include <sstream>
 #include <iomanip>
@@ -154,6 +157,70 @@ namespace GC_namespace
   using map_type         = map<string_type, GenericContainer>;
   using vec_uint_type    = vector<uint_type>;
   using vec_ulong_type   = vector<ulong_type>;
+
+  //!
+  //! Implementation details of the variant-based storage.
+  //!
+  namespace GC_details
+  {
+
+    //!
+    //! \brief Deep-copying heap box used as variant alternative.
+    //!
+    //! Owns a `T` on the heap through `unique_ptr` and clones it on copy, so
+    //! the enclosing `std::variant` gets value semantics for heavy and
+    //! recursive types. `Box<T>` is a complete type even when `T` is not,
+    //! which is what allows `map<string, GenericContainer>` and
+    //! `vector<GenericContainer>` alternatives inside `GenericContainer`
+    //! itself. `operator*` propagates constness: a `Box` reached through a
+    //! const container only hands out `T const &`.
+    //!
+    //! The pointer is never null except in a moved-from `Box`, and
+    //! `GenericContainer` resets a moved-from variant to `monostate` before
+    //! anyone can observe it.
+    //!
+    template <typename T> class Box
+    {
+      std::unique_ptr<T> m_ptr;
+
+    public:
+      Box() : m_ptr( std::make_unique<T>() ) {}
+      template <typename... Args>
+      explicit Box( std::in_place_t, Args &&... args ) : m_ptr( std::make_unique<T>( std::forward<Args>( args )... ) )
+      {
+      }
+      Box( Box const & o ) : m_ptr( std::make_unique<T>( *o.m_ptr ) ) {}
+      Box( Box && ) noexcept = default;
+      Box & operator=( Box const & o )
+      {
+        *m_ptr = *o.m_ptr;
+        return *this;
+      }
+      Box & operator=( Box && ) noexcept = default;
+      ~Box() = default;
+
+      T &       operator*() noexcept { return *m_ptr; }
+      T const & operator*() const noexcept { return *m_ptr; }
+      T *       operator->() noexcept { return m_ptr.get(); }
+      T const * operator->() const noexcept { return m_ptr.get(); }
+    };
+
+    //! Overload set builder for `std::visit`.
+    template <typename... Ts> struct overloaded : Ts...
+    {
+      using Ts::operator()...;
+    };
+    template <typename... Ts> overloaded( Ts... ) -> overloaded<Ts...>;
+
+    template <typename T> struct is_box : std::false_type
+    {
+    };
+    template <typename T> struct is_box<Box<T>> : std::true_type
+    {
+    };
+    template <typename T> inline constexpr bool is_box_v = is_box<T>::value;
+
+  }  // namespace GC_details
 
 #endif
 
@@ -628,41 +695,148 @@ namespace GC_namespace
     using mat_complex_type = GC_namespace::mat_complex_type;  //!< Alias for matrix of complex numbers type
 
   private:
+    template <typename T> using Box = GC_details::Box<T>;
+
     //!
-    //! \brief Union for internal data storage.
+    //! \brief Variant for internal data storage.
     //!
-    //! This union holds the actual data for the container in its various possible forms.
-    //! Depending on the current data type stored in the container, different members of the union will be used.
+    //! The alternatives are ordered so that `m_data.index()` equals the
+    //! numeric value of the corresponding `GC_type` tag; the static_asserts
+    //! below lock the correspondence. Heavy and recursive types are boxed,
+    //! which keeps `sizeof(GenericContainer)` at two words (same footprint
+    //! and allocation profile as the historical tagged union) and makes the
+    //! recursive `vector_type`/`map_type` alternatives legal.
     //!
-    using DataStorage = union
+    using Data = std::variant<
+      std::monostate,          // NOTYPE
+      pointer_type,            // POINTER
+      bool_type,               // BOOL
+      int_type,                // INTEGER
+      long_type,               // LONG
+      real_type,               // REAL
+      Box<complex_type>,       // COMPLEX
+      Box<string_type>,        // STRING
+      Box<vec_pointer_type>,   // VEC_POINTER
+      Box<vec_bool_type>,      // VEC_BOOL
+      Box<vec_int_type>,       // VEC_INTEGER
+      Box<vec_long_type>,      // VEC_LONG
+      Box<vec_real_type>,      // VEC_REAL
+      Box<vec_complex_type>,   // VEC_COMPLEX
+      Box<vec_string_type>,    // VEC_STRING
+      Box<mat_int_type>,       // MAT_INTEGER
+      Box<mat_long_type>,      // MAT_LONG
+      Box<mat_real_type>,      // MAT_REAL
+      Box<mat_complex_type>,   // MAT_COMPLEX
+      Box<vector_type>,        // VECTOR
+      Box<map_type>            // MAP
+    >;
+
+    Data m_data{};  //!< The stored value; the active alternative is the type tag.
+
+    template <GC_type TP>
+    using alt_t = std::variant_alternative_t<static_cast<std::size_t>( TP ), Data>;
+
+    static_assert( std::variant_size_v<Data> == 21 );
+    static_assert( std::is_same_v<alt_t<GC_type::NOTYPE>, std::monostate> );
+    static_assert( std::is_same_v<alt_t<GC_type::POINTER>, pointer_type> );
+    static_assert( std::is_same_v<alt_t<GC_type::BOOL>, bool_type> );
+    static_assert( std::is_same_v<alt_t<GC_type::INTEGER>, int_type> );
+    static_assert( std::is_same_v<alt_t<GC_type::LONG>, long_type> );
+    static_assert( std::is_same_v<alt_t<GC_type::REAL>, real_type> );
+    static_assert( std::is_same_v<alt_t<GC_type::COMPLEX>, Box<complex_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::STRING>, Box<string_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VEC_POINTER>, Box<vec_pointer_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VEC_BOOL>, Box<vec_bool_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VEC_INTEGER>, Box<vec_int_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VEC_LONG>, Box<vec_long_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VEC_REAL>, Box<vec_real_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VEC_COMPLEX>, Box<vec_complex_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VEC_STRING>, Box<vec_string_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::MAT_INTEGER>, Box<mat_int_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::MAT_LONG>, Box<mat_long_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::MAT_REAL>, Box<mat_real_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::MAT_COMPLEX>, Box<mat_complex_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::VECTOR>, Box<vector_type>> );
+    static_assert( std::is_same_v<alt_t<GC_type::MAP>, Box<map_type>> );
+    // moves never throw, so the variant can never become valueless: every
+    // alternative change goes through a nothrow move-assign of a fully
+    // constructed value (see reset_to).
+    static_assert( std::is_nothrow_move_constructible_v<Data> );
+
+    //!
+    //! \brief Replace the stored value with a freshly constructed `T`.
+    //!
+    //! The new value is fully constructed *before* the variant is touched, so
+    //! on an exception (e.g. bad_alloc) the container keeps its previous
+    //! value and type -- strong exception safety, and the variant can never
+    //! be observed valueless.
+    //!
+    template <typename T, typename... Args> T & reset_to( Args &&... args )
     {
-      pointer_type   p;  ///< Pointer data
-      bool_type      b;  ///< Boolean data
-      int_type       i;  ///< Integer data
-      long_type      l;  ///< Long integer data
-      real_type      r;  ///< Floating point (real) data
-      complex_type * c;  ///< Pointer to complex number data
-      string_type *  s;  ///< Pointer to string data
+      Box<T> b( std::in_place, std::forward<Args>( args )... );
+      return *std::get<Box<T>>( m_data = std::move( b ) );
+    }
 
-      vec_pointer_type * v_p;  ///< Pointer to vector of pointers
-      vec_bool_type *    v_b;  ///< Pointer to vector of booleans
-      vec_int_type *     v_i;  ///< Pointer to vector of integers
-      vec_long_type *    v_l;  ///< Pointer to vector of long integers
-      vec_real_type *    v_r;  ///< Pointer to vector of real numbers
-      vec_complex_type * v_c;  ///< Pointer to vector of complex numbers
-      vec_string_type *  v_s;  ///< Pointer to vector of strings
+    //!
+    //! \brief Move the active boxed value out, leaving the container NOTYPE.
+    //!
+    //! Replaces the historical promotion pattern "save the raw pointer, set
+    //! the tag to NOTYPE so clear() skips it, delete manually at the end":
+    //! the returned Box owns the old value and frees it on scope exit.
+    //!
+    template <typename T> Box<T> take_box()
+    {
+      Box<T> out{ std::move( std::get<Box<T>>( m_data ) ) };
+      m_data.emplace<std::monostate>();
+      return out;
+    }
 
-      mat_int_type *     m_i;  ///< Pointer to matrix of integers
-      mat_long_type *    m_l;  ///< Pointer to matrix of long integers
-      mat_real_type *    m_r;  ///< Pointer to matrix of real numbers
-      mat_complex_type * m_c;  ///< Pointer to matrix of complex numbers
+    // Legacy-shaped accessors: named after the historical union members so
+    // the implementation files read the same as before the variant rewrite.
+    pointer_type &       _p() { return std::get<pointer_type>( m_data ); }
+    pointer_type const & _p() const { return std::get<pointer_type>( m_data ); }
+    bool_type &          _b() { return std::get<bool_type>( m_data ); }
+    bool_type const &    _b() const { return std::get<bool_type>( m_data ); }
+    int_type &           _i() { return std::get<int_type>( m_data ); }
+    int_type const &     _i() const { return std::get<int_type>( m_data ); }
+    long_type &          _l() { return std::get<long_type>( m_data ); }
+    long_type const &    _l() const { return std::get<long_type>( m_data ); }
+    real_type &          _r() { return std::get<real_type>( m_data ); }
+    real_type const &    _r() const { return std::get<real_type>( m_data ); }
 
-      vector_type * v;  ///< Pointer to vector of `GenericContainer`
-      map_type *    m;  ///< Pointer to map of `GenericContainer`
-    };
+    complex_type &       _c() { return *std::get<Box<complex_type>>( m_data ); }
+    complex_type const & _c() const { return *std::get<Box<complex_type>>( m_data ); }
+    string_type &        _s() { return *std::get<Box<string_type>>( m_data ); }
+    string_type const &  _s() const { return *std::get<Box<string_type>>( m_data ); }
 
-    TypeAllowed m_data_type{ GC_type::NOTYPE };  //!< The type of data currently stored.
-    DataStorage m_data;                          //!< The actual data stored in the container.
+    vec_pointer_type &       _v_p() { return *std::get<Box<vec_pointer_type>>( m_data ); }
+    vec_pointer_type const & _v_p() const { return *std::get<Box<vec_pointer_type>>( m_data ); }
+    vec_bool_type &          _v_b() { return *std::get<Box<vec_bool_type>>( m_data ); }
+    vec_bool_type const &    _v_b() const { return *std::get<Box<vec_bool_type>>( m_data ); }
+    vec_int_type &           _v_i() { return *std::get<Box<vec_int_type>>( m_data ); }
+    vec_int_type const &     _v_i() const { return *std::get<Box<vec_int_type>>( m_data ); }
+    vec_long_type &          _v_l() { return *std::get<Box<vec_long_type>>( m_data ); }
+    vec_long_type const &    _v_l() const { return *std::get<Box<vec_long_type>>( m_data ); }
+    vec_real_type &          _v_r() { return *std::get<Box<vec_real_type>>( m_data ); }
+    vec_real_type const &    _v_r() const { return *std::get<Box<vec_real_type>>( m_data ); }
+    vec_complex_type &       _v_c() { return *std::get<Box<vec_complex_type>>( m_data ); }
+    vec_complex_type const & _v_c() const { return *std::get<Box<vec_complex_type>>( m_data ); }
+    vec_string_type &        _v_s() { return *std::get<Box<vec_string_type>>( m_data ); }
+    vec_string_type const &  _v_s() const { return *std::get<Box<vec_string_type>>( m_data ); }
+
+    mat_int_type &           _m_i() { return *std::get<Box<mat_int_type>>( m_data ); }
+    mat_int_type const &     _m_i() const { return *std::get<Box<mat_int_type>>( m_data ); }
+    mat_long_type &          _m_l() { return *std::get<Box<mat_long_type>>( m_data ); }
+    mat_long_type const &    _m_l() const { return *std::get<Box<mat_long_type>>( m_data ); }
+    mat_real_type &          _m_r() { return *std::get<Box<mat_real_type>>( m_data ); }
+    mat_real_type const &    _m_r() const { return *std::get<Box<mat_real_type>>( m_data ); }
+    mat_complex_type &       _m_c() { return *std::get<Box<mat_complex_type>>( m_data ); }
+    mat_complex_type const & _m_c() const { return *std::get<Box<mat_complex_type>>( m_data ); }
+
+    vector_type &       _v() { return *std::get<Box<vector_type>>( m_data ); }
+    vector_type const & _v() const { return *std::get<Box<vector_type>>( m_data ); }
+    map_type &          _m() { return *std::get<Box<map_type>>( m_data ); }
+    map_type const &    _m() const { return *std::get<Box<map_type>>( m_data ); }
 
     //! \brief Allocates memory for a string.
     void allocate_string();
@@ -722,14 +896,14 @@ namespace GC_namespace
 #ifdef GENERIC_CONTAINER_ON_WINDOWS
     bool simple_data() const;
 #else
-    [[nodiscard]] bool simple_data() const { return m_data_type <= GC_type::STRING; }
+    [[nodiscard]] bool simple_data() const { return get_type() <= GC_type::STRING; }
 #endif
 
 //! \brief Returns true if the data type is a simple vector type.
 #ifdef GENERIC_CONTAINER_ON_WINDOWS
     bool simple_vec_data() const;
 #else
-    [[nodiscard]] bool simple_vec_data() const { return m_data_type < GC_type::VEC_STRING; }
+    [[nodiscard]] bool simple_vec_data() const { return get_type() < GC_type::VEC_STRING; }
 #endif
 
   public:
@@ -745,7 +919,7 @@ namespace GC_namespace
     //! // gc is now an empty container with no type assigned
     //! \endcode
     //!
-    GenericContainer() : m_data_type( GC_type::NOTYPE ) {}
+    GenericContainer() = default;
 
     //!
     //! \brief Destroys the `GenericContainer` and releases any allocated resources.
@@ -763,7 +937,7 @@ namespace GC_namespace
     //! // When gc goes out of scope, the destructor is called automatically, freeing resources
     //! \endcode
     //!
-    ~GenericContainer() { clear(); }
+    ~GenericContainer() = default;
 
     // =======================================================================
     // MOVE SEMANTICS - IMPLEMENTAZIONE OTTIMIZZATA
@@ -781,10 +955,11 @@ namespace GC_namespace
      * \note Uses `std::exchange` to both transfer and reset the source
      *       in a single, exception-safe operation.
      */
-    GenericContainer( GenericContainer && other ) noexcept
-      : m_data_type( std::exchange( other.m_data_type, GC_type::NOTYPE ) )
-      , m_data( std::exchange( other.m_data, DataStorage{} ) )
+    GenericContainer( GenericContainer && other ) noexcept : m_data( std::move( other.m_data ) )
     {
+      // a moved-from Box holds a null pointer; reset the source to NOTYPE so
+      // the hollow state can never be observed
+      other.m_data.emplace<std::monostate>();
     }
 
     //! \brief Move assignment operator
@@ -802,8 +977,8 @@ namespace GC_namespace
     {
       if ( this != &other )
       {
-        GenericContainer temp( std::move( other ) );
-        swap( temp );
+        m_data = std::move( other.m_data );
+        other.m_data.emplace<std::monostate>();
       }
       return *this;
     }
@@ -817,12 +992,7 @@ namespace GC_namespace
      *
      * \param other The container to swap with.
      */
-    void swap( GenericContainer & other ) noexcept
-    {
-      using std::swap;
-      swap( m_data_type, other.m_data_type );
-      swap( m_data, other.m_data );
-    }
+    void swap( GenericContainer & other ) noexcept { m_data.swap( other.m_data ); }
 
     //!
     //! \brief Clears the content of the `GenericContainer`, resetting it to an empty state.
@@ -881,7 +1051,7 @@ namespace GC_namespace
     //! assert(gc.empty());    // Now it's empty
     //! \endcode
     //!
-    bool empty() const { return this->m_data_type == GC_type::NOTYPE; }
+    bool empty() const { return std::holds_alternative<std::monostate>( m_data ); }
 
     //!
     //! \name Methods for Initializing Simple Data Types
@@ -1503,7 +1673,7 @@ namespace GC_namespace
     //!
     //! \param[in] b value The boolean value to push.
     //!
-    void push_bool( bool b ) const;
+    void push_bool( bool b );  // was const: it mutates and the variant now enforces that
 
     //! \brief Push an integer value into the vector or matrix.
     //!
@@ -1627,7 +1797,7 @@ namespace GC_namespace
     //!
     //! \return The type of the internally stored data as an integer.
     //!
-    TypeAllowed get_type() const { return m_data_type; }
+    TypeAllowed get_type() const { return static_cast<TypeAllowed>( m_data.index() ); }
 
     //!
     //! \brief Return a string representing the type of data stored.
@@ -1846,7 +2016,7 @@ namespace GC_namespace
     template <typename T> T & get_pointer()
     {
       ck( "get_pointer", GC_type::POINTER );
-      return *static_cast<T *>( m_data.p );
+      return *static_cast<T *>( _p() );
     }
 
     //!
@@ -1857,7 +2027,7 @@ namespace GC_namespace
     template <typename T> T get_pointer() const
     {
       ck( "get_pointer", GC_type::POINTER );
-      return reinterpret_cast<T>( m_data.p );
+      return reinterpret_cast<T>( _p() );
     }
 #endif
 
@@ -3831,8 +4001,10 @@ namespace GC_namespace
     //!
     GenericContainer const & operator=( GenericContainer const & a )
     {
-      this->clear();
-      this->from_gc( a );
+      // copy-and-swap: safe for self-assignment and for aliasing sources
+      // living inside this container (e.g. gc = gc["key"])
+      GenericContainer tmp( a );
+      swap( tmp );
       return *this;
     }
 
@@ -3932,85 +4104,85 @@ namespace GC_namespace
     //! Construct a generic container storing a boolean
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( bool const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( bool const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing an integer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( uint_type const & a ) : m_data_type( GC_type::NOTYPE ) { *this = a; }
+    explicit GenericContainer( uint_type const & a ) { *this = a; }
 
     //!
     //! Construct a generic container storing an integer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( int_type const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( int_type const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing an integer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( ulong_type const & a ) : m_data_type( GC_type::NOTYPE ) { *this = a; }
+    explicit GenericContainer( ulong_type const & a ) { *this = a; }
 
     //!
     //! Construct a generic container storing an integer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( long_type const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( long_type const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a floating point number
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( float const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( float const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a floating point number
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( double const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( double const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a complex floating point number
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( complex<float> const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( complex<float> const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a complex floating point number
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( complex<double> const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( complex<double> const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a string or pointer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( char const * a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( char const * a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a string or pointer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( string const & a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( string const & a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a string or pointer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( string_view a ) : m_data_type( GC_type::NOTYPE ) { this->operator=( a ); }
+    explicit GenericContainer( string_view a ) { this->operator=( a ); }
 
     //!
     //! Construct a generic container storing a pointer
     //! \param[in] a initializer data
     //!
-    explicit GenericContainer( pointer_type a ) : m_data_type( GC_type::NOTYPE ) { this->set_pointer( a ); }
+    explicit GenericContainer( pointer_type a ) { this->set_pointer( a ); }
 
     //!
     //! Construct a generic container copying container `gc`
     //! \param[in] gc initializer data
     //!
-    GenericContainer( GenericContainer const & gc ) : m_data_type( GC_type::NOTYPE ) { this->from_gc( gc ); }
+    GenericContainer( GenericContainer const & gc ) = default;  // deep copy via Box
 
     ///@}
 

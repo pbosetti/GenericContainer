@@ -51,18 +51,18 @@ namespace GC_namespace
     string_type indent{ "  " };
     string_type prefix1{ prefix };
     prefix1 += indent;
-    switch ( m_data_type )
+    switch ( get_type() )
     {
       case GC_type::NOTYPE: stream << "null"; break;
-      case GC_type::BOOL: stream << ( m_data.b ? "true" : "false" ); break;
-      case GC_type::INTEGER: stream << m_data.i; break;
-      case GC_type::LONG: stream << m_data.l; break;
-      case GC_type::REAL: stream << m_data.r; break;
-      case GC_type::COMPLEX: stream << '"' << to_string( *m_data.c ) << '"'; break;
-      case GC_type::STRING: string_escape( stream, *m_data.s ); break;
+      case GC_type::BOOL: stream << ( _b() ? "true" : "false" ); break;
+      case GC_type::INTEGER: stream << _i(); break;
+      case GC_type::LONG: stream << _l(); break;
+      case GC_type::REAL: stream << _r(); break;
+      case GC_type::COMPLEX: stream << '"' << to_string( _c() ) << '"'; break;
+      case GC_type::STRING: string_escape( stream, _s() ); break;
       case GC_type::VEC_BOOL:
       {
-        vec_bool_type const & v{ *m_data.v_b };
+        vec_bool_type const & v{ _v_b() };
         string_view           pre{ "[ " };
         for ( bool vi : v )
         {
@@ -83,31 +83,31 @@ namespace GC_namespace
 
       case GC_type::VEC_INTEGER:
       {
-        vec_int_type const & v{ *m_data.v_i };
+        vec_int_type const & v{ _v_i() };
         GC_PRINT_VECTOR( vi );
         break;
       }
       case GC_type::VEC_LONG:
       {
-        vec_long_type const & v{ *m_data.v_l };
+        vec_long_type const & v{ _v_l() };
         GC_PRINT_VECTOR( vi );
         break;
       }
       case GC_type::VEC_REAL:
       {
-        vec_real_type const & v{ *m_data.v_r };
+        vec_real_type const & v{ _v_r() };
         GC_PRINT_VECTOR( vi );
         break;
       }
       case GC_type::VEC_COMPLEX:
       {
-        vec_complex_type const & v{ *m_data.v_c };
+        vec_complex_type const & v{ _v_c() };
         GC_PRINT_VECTOR( '"' << to_string( vi ) << '"' );
         break;
       }
       case GC_type::VEC_STRING:
       {
-        vec_string_type const & v{ *m_data.v_s };
+        vec_string_type const & v{ _v_s() };
         char const *            pre = "[ ";
         for ( auto const & vi : v )
         {
@@ -120,7 +120,7 @@ namespace GC_namespace
       }
       case GC_type::VECTOR:
       {
-        vector_type const & v{ *m_data.v };
+        vector_type const & v{ _v() };
         if ( !v.empty() )
         {
           stream << '\n' << prefix;
@@ -141,7 +141,7 @@ namespace GC_namespace
       }
       case GC_type::MAP:
       {
-        map_type const & m{ *m_data.m };
+        map_type const & m{ _m() };
         if ( !m.empty() )
         {
           stream << '\n' << prefix;
@@ -179,29 +179,29 @@ namespace GC_namespace
 
       case GC_type::MAT_INTEGER:
       {
-        mat_int_type const & M{ *m_data.m_i };
+        mat_int_type const & M{ _m_i() };
         GC_PRINT_MATRIX( M( i, j ) );
         break;
       }
       case GC_type::MAT_LONG:
       {
-        mat_long_type const & M{ *m_data.m_l };
+        mat_long_type const & M{ _m_l() };
         GC_PRINT_MATRIX( M( i, j ) );
         break;
       }
       case GC_type::MAT_REAL:
       {
-        mat_real_type const & M{ *m_data.m_r };
+        mat_real_type const & M{ _m_r() };
         GC_PRINT_MATRIX( M( i, j ) );
         break;
       }
       case GC_type::MAT_COMPLEX:
       {
-        mat_complex_type const & M{ *m_data.m_c };
+        mat_complex_type const & M{ _m_c() };
         GC_PRINT_MATRIX( "'" << to_string( M( i, j ) ) << "'" );
         break;
       }
-      case GC_type::POINTER: stream << std::hex << std::showbase << reinterpret_cast<uintptr_t>( m_data.p ); break;
+      case GC_type::POINTER: stream << std::hex << std::showbase << reinterpret_cast<uintptr_t>( _p() ); break;
       case GC_type::VEC_POINTER:
       {
         vec_pointer_type const & V = this->get_vec_pointer( "" );

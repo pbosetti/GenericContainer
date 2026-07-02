@@ -144,8 +144,6 @@ TEST_CASE( "vec to mat_int/long/complex promotions fill the column", "[promote][
   // through m_data.m_r (matrix-of-real) while the union holds a different
   // matrix type -- copy-paste type confusion, UB. Only promote_to_mat_real is
   // correct. Fixed structurally by the Phase 2 variant rewrite.
-  SKIP( "promote_to_mat_{int,long,complex} write through the wrong union member until Phase 2" );
-
   GenericContainer gc;
   gc = vec_int_type{ 4, 5 };
   gc.promote_to_mat_int();
@@ -202,8 +200,6 @@ TEST_CASE( "promote_to_vector wraps scalars into one-element VECTOR", "[promote]
   // pointer -- garbage for arithmetic scalars, use-after-free for
   // STRING/COMPLEX. The VEC_* cases save the pointer first and are fine.
   // Fixed structurally by the Phase 2 variant rewrite.
-  SKIP( "promote_to_vector scalar cases read repurposed union storage until Phase 2" );
-
   GenericContainer gc;
   gc.set_int( 3 );
   gc.promote_to_vector();

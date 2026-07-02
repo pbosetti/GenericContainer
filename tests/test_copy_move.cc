@@ -205,8 +205,6 @@ TEST_CASE( "self move-assignment is harmless", "[move]" )
 
 TEST_CASE( "self copy-assignment keeps content", "[copy][newbehavior]" )
 {
-  SKIP( "current operator= is clear(); from_gc(a); -- UAF on self-assignment; fixed in Phase 2" );
-
   GenericContainer a;
   a["k"] = vec_int_type{ 1, 2 };
   GenericContainer & alias = a;
@@ -216,8 +214,6 @@ TEST_CASE( "self copy-assignment keeps content", "[copy][newbehavior]" )
 
 TEST_CASE( "assignment from own sub-element keeps the sub-tree alive", "[copy][newbehavior]" )
 {
-  SKIP( "aliasing gc = gc[\"key\"] is a UAF before the Phase 2 copy-and-swap fix" );
-
   GenericContainer a;
   a["sub"]["x"] = 42;
   a = std::as_const( a )["sub"];
@@ -226,8 +222,6 @@ TEST_CASE( "assignment from own sub-element keeps the sub-tree alive", "[copy][n
 
 TEST_CASE( "set_vec_int from own vector reference survives", "[copy][newbehavior]" )
 {
-  SKIP( "self-feed set_vec_int(gc.get_vec_int()) aliases freed storage before Phase 2" );
-
   GenericContainer a;
   a = vec_int_type{ 3, 4 };
   a.set_vec_int( std::as_const( a ).get_vec_int() );
