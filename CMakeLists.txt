@@ -171,6 +171,17 @@ utils_setup_target(
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
   "${PUBLIC_HEADERS}"
 )
+# utils_setup_target() only publishes CMAKE_CURRENT_SOURCE_DIR (the repo root) as a
+# PUBLIC include dir, not the "include" subfolder where the public headers actually
+# live, so downstream consumers (e.g. via FetchContent) cannot find <GenericContainer.hh>.
+target_include_directories(
+  "${UTILS_NAMESPACE}_${PROJECT_NAME}_Static" PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+)
+# CMakeLists-cflags.txt only injects "-std=c++17" into CMAKE_CXX_FLAGS, which is scoped
+# to this directory and never reaches a consumer's own targets, so require C++17 here
+# too via a PUBLIC usage requirement to propagate it to anything linking this library.
+target_compile_features( "${UTILS_NAMESPACE}_${PROJECT_NAME}_Static" PUBLIC cxx_std_17 )
 if ( UTILS_BUILD_SHARED )
   utils_setup_target(
     Lua
@@ -188,6 +199,11 @@ if ( UTILS_BUILD_SHARED )
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${PUBLIC_HEADERS}"
   )
+  target_include_directories(
+    "${UTILS_NAMESPACE}_${PROJECT_NAME}" PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  )
+  target_compile_features( "${UTILS_NAMESPACE}_${PROJECT_NAME}" PUBLIC cxx_std_17 )
   target_link_libraries( "${UTILS_NAMESPACE}_${PROJECT_NAME}" "${UTILS_NAMESPACE}_Lua" )
 endif()
 
@@ -200,7 +216,12 @@ endif()
 #    | |/ -_|_-<  _(_-<
 #    |_|\___/__/\__/__/
 #
-if ( UTILS_ENABLE_TESTS )
+# Only build examples/tests when GenericContainer is the top-level project: when it is
+# pulled in via add_subdirectory/FetchContent, these targets would collide with targets
+# of the same generic name (test_all, example01, ...) defined by sibling dependencies,
+# get added to the consumer's default ALL target, and write executables into this
+# source tree instead of the consumer's build tree.
+if ( UTILS_ENABLE_TESTS AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR )
 
   enable_testing()
 
