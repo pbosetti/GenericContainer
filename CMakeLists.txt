@@ -120,15 +120,26 @@ endif()
 #  |____/ \__,_|\___|_|\_\___|_| |_|\__,_|___/
 #
 # Optional format-backend libraries, each fetching its own single
-# dependency; not installed/exported yet (only the core library is).
+# dependency. toml++/fkYAML are header-only and never appear in either
+# backend's public headers, so their effects are fully baked into
+# GenericContainerToml/Yaml's compiled code once built ($<BUILD_INTERFACE:...>
+# in their target_link_libraries keeps that dependency out of the installed
+# package's metadata entirely -- see each subdirectory's CMakeLists.txt).
+# Lua is different: it has real compiled code that must reach whatever
+# finally links GenericContainer::Lua, so the "lua" target itself also
+# joins the export set below (as GenericContainer::LuaVM).
+set( GENERIC_CONTAINER_BACKEND_TARGETS )
 if ( GENERIC_CONTAINER_ENABLE_YAML )
   add_subdirectory( src_yaml_interface )
+  list( APPEND GENERIC_CONTAINER_BACKEND_TARGETS GenericContainerYaml )
 endif()
 if ( GENERIC_CONTAINER_ENABLE_TOML )
   add_subdirectory( src_toml_interface )
+  list( APPEND GENERIC_CONTAINER_BACKEND_TARGETS GenericContainerToml )
 endif()
 if ( GENERIC_CONTAINER_ENABLE_LUA )
   add_subdirectory( src_lua_interface )
+  list( APPEND GENERIC_CONTAINER_BACKEND_TARGETS GenericContainerLua lua )
 endif()
 
 #   _____         _
@@ -152,7 +163,7 @@ if ( GENERIC_CONTAINER_INSTALL )
   include( CMakePackageConfigHelpers )
 
   install(
-    TARGETS GenericContainer
+    TARGETS GenericContainer ${GENERIC_CONTAINER_BACKEND_TARGETS}
     EXPORT GenericContainerTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

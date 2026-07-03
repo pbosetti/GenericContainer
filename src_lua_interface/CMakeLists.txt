@@ -31,9 +31,19 @@ file( GLOB LUA_SOURCES CONFIGURE_DEPENDS "${lua54_SOURCE_DIR}/src/*.c" )
 list( FILTER LUA_SOURCES EXCLUDE REGEX "/lua\\.c$" )
 list( FILTER LUA_SOURCES EXCLUDE REGEX "/luac\\.c$" )
 
+# Unlike toml++/fkYAML, Lua has real compiled code that must reach whatever
+# finally links GenericContainer::Lua -- there's no header-only trick to
+# hide it behind. So, unlike those two, "lua" IS installed and exported
+# (see the root CMakeLists.txt), under EXPORT_NAME LuaVM to keep it visibly
+# distinct from GenericContainer::Lua (the actual from_lua/to_lua bridge
+# this directory builds) once both land in the GenericContainer:: namespace.
 add_library( lua STATIC ${LUA_SOURCES} )
 add_library( lua::lua ALIAS lua )
-target_include_directories( lua SYSTEM PUBLIC "$<BUILD_INTERFACE:${lua54_SOURCE_DIR}/src>" )
+set_target_properties( lua PROPERTIES EXPORT_NAME LuaVM )
+target_include_directories(
+  lua SYSTEM PUBLIC
+  "$<BUILD_INTERFACE:${lua54_SOURCE_DIR}/src>"
+)
 
 if ( APPLE )
   target_compile_definitions( lua PRIVATE LUA_USE_MACOSX )
@@ -44,6 +54,9 @@ endif()
 
 add_library( GenericContainerLua GenericContainerInterface_lua.cc GenericContainerLuaPmain.cc )
 add_library( GenericContainer::Lua ALIAS GenericContainerLua )
+# So the installed/exported name (GenericContainer::Lua) matches this
+# build-tree alias exactly, instead of the default GenericContainer::GenericContainerLua.
+set_target_properties( GenericContainerLua PROPERTIES EXPORT_NAME Lua )
 
 target_compile_features( GenericContainerLua PUBLIC cxx_std_20 )
 target_link_libraries(
