@@ -113,7 +113,7 @@ See [`examples/`](examples/) for complete, compilable programs.
 
 Requires **CMake ≥ 3.25** and a **C++20** compiler (Clang, GCC, or MSVC).
 All dependencies are fetched automatically via `FetchContent`:
-[Eigen](https://eigen.tuxfamily.org) 3.4.0 is always fetched fresh (pinned,
+[Eigen](https://eigen.tuxfamily.org) 5.0.0 is always fetched fresh (pinned,
 for version consistency — it's never looked up as an installed package);
 [toml++](https://github.com/marzer/tomlplusplus) and
 [fkYAML](https://github.com/fktn-k/fkYAML) prefer an already-installed
