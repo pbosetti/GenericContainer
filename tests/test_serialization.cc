@@ -183,14 +183,36 @@ TEST_CASE( "truncated buffers throw instead of crashing", "[serialize][errors]" 
 
 TEST_CASE( "corrupted type tag is rejected", "[serialize][errors][newbehavior]" )
 {
-  // HOLE (pre-hardening): the de_serialize tag switch has no default case, so
-  // an invalid tag is silently ignored. Phase 5 adds the rejection.
-  SKIP( "invalid tag silently ignored until Phase 5 serialization hardening" );
-
   GenericContainer gc;
   gc.set_int( 7 );
   std::vector<uint8_t> buffer{ gc.serialize() };
   buffer[0] = 0xFF;  // clobber the tag (first byte of the little-endian int32)
   GenericContainer dst;
   CHECK_THROWS_AS( dst.de_serialize( int32_t( buffer.size() ), buffer.data() ), std::runtime_error );
+}
+
+TEST_CASE( "oversized matrix dims are rejected before allocating", "[serialize][errors]" )
+{
+  // A forged header claiming a 2^30 x 2^30 real matrix must be refused by the
+  // payload-vs-remaining-bytes pre-check, not attempted as a huge allocation.
+  auto put_i32 = []( std::vector<uint8_t> & b, int32_t v )
+  {
+    for ( int k = 0; k < 4; ++k ) b.push_back( uint8_t( ( uint32_t( v ) >> ( 8 * k ) ) & 0xFF ) );
+  };
+  std::vector<uint8_t> forged;
+  put_i32( forged, int32_t( GC_type::MAT_REAL ) );
+  put_i32( forged, 1 << 30 );  // nr
+  put_i32( forged, 1 << 30 );  // nc
+  forged.resize( forged.size() + 64, 0 );
+
+  GenericContainer dst;
+  CHECK_THROWS_AS( dst.de_serialize( int32_t( forged.size() ), forged.data() ), std::runtime_error );
+
+  // same for a forged vector length
+  std::vector<uint8_t> forged_vec;
+  put_i32( forged_vec, int32_t( GC_type::VEC_REAL ) );
+  put_i32( forged_vec, 1 << 30 );
+  forged_vec.resize( forged_vec.size() + 64, 0 );
+  GenericContainer dst2;
+  CHECK_THROWS_AS( dst2.de_serialize( int32_t( forged_vec.size() ), forged_vec.data() ), std::runtime_error );
 }

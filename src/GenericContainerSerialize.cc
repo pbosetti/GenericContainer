@@ -26,6 +26,8 @@
 #endif
 
 #include "GenericContainer/GenericContainer.hh"
+
+#include <limits>
 #include "GenericContainer/GenericContainerLibs.hh"
 #include <cstring>
 #include <cstdint>
@@ -166,65 +168,70 @@ namespace GC_namespace
     return nb;
   }
 
-  int32_t GenericContainer::mem_size() const
+  //!
+  //! Serialized size computed in 64 bits through the public accessors, so a
+  //! container larger than the int32 wire-format limit is detected instead
+  //! of silently truncated.
+  //!
+  static uint64_t gc_mem_size( GenericContainer const & gc )
   {
-    constexpr int32_t header_size{ sizeof( int32_t ) };
-    constexpr int32_t ptr_size{ 8 };
-    int32_t           res{ 0 };
-    switch ( get_type() )
+    constexpr uint64_t header_size{ sizeof( int32_t ) };
+    constexpr uint64_t len_size{ sizeof( int32_t ) };
+    constexpr uint64_t ptr_size{ 8 };
+    uint64_t           res{ 0 };
+    switch ( gc.get_type() )
     {
-      case GC_type::NOTYPE: res = static_cast<int32_t>( header_size ); break;
-      case GC_type::BOOL: res = static_cast<int32_t>( header_size + 1 ); break;
-      case GC_type::INTEGER: res = static_cast<int32_t>( header_size + sizeof( int_type ) ); break;
-      case GC_type::LONG: res = static_cast<int32_t>( header_size + sizeof( long_type ) ); break;
-      case GC_type::REAL: res = static_cast<int32_t>( header_size + sizeof( real_type ) ); break;
-      case GC_type::POINTER: res = static_cast<int32_t>( header_size + ptr_size ); break;
-      case GC_type::STRING: res = static_cast<int32_t>( header_size + _s().length() + 5 ); break;
-      case GC_type::COMPLEX: res = static_cast<int32_t>( header_size + sizeof( complex_type ) ); break;
-      case GC_type::VEC_POINTER:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) + ptr_size * _v_p().size() );
-        break;
-      case GC_type::VEC_BOOL: res = static_cast<int32_t>( header_size + sizeof( int32_t ) + _v_b().size() ); break;
-      case GC_type::VEC_INTEGER:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) + sizeof( int_type ) * _v_i().size() );
-        break;
-      case GC_type::VEC_LONG:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) + sizeof( long_type ) * _v_l().size() );
-        break;
-      case GC_type::VEC_REAL:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) + sizeof( real_type ) * _v_r().size() );
-        break;
+      case GC_type::NOTYPE: res = header_size; break;
+      case GC_type::BOOL: res = header_size + 1; break;
+      case GC_type::INTEGER: res = header_size + sizeof( int_type ); break;
+      case GC_type::LONG: res = header_size + sizeof( long_type ); break;
+      case GC_type::REAL: res = header_size + sizeof( real_type ); break;
+      case GC_type::POINTER: res = header_size + ptr_size; break;
+      case GC_type::STRING: res = header_size + gc.get_string().length() + 5; break;
+      case GC_type::COMPLEX: res = header_size + sizeof( complex_type ); break;
+      case GC_type::VEC_POINTER: res = header_size + len_size + ptr_size * gc.get_vec_pointer().size(); break;
+      case GC_type::VEC_BOOL: res = header_size + len_size + gc.get_vec_bool().size(); break;
+      case GC_type::VEC_INTEGER: res = header_size + len_size + sizeof( int_type ) * gc.get_vec_int().size(); break;
+      case GC_type::VEC_LONG: res = header_size + len_size + sizeof( long_type ) * gc.get_vec_long().size(); break;
+      case GC_type::VEC_REAL: res = header_size + len_size + sizeof( real_type ) * gc.get_vec_real().size(); break;
       case GC_type::VEC_COMPLEX:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) + sizeof( complex_type ) * _v_c().size() );
+        res = header_size + len_size + sizeof( complex_type ) * gc.get_vec_complex().size();
         break;
-
       case GC_type::MAT_INTEGER:
-        res = static_cast<int32_t>( header_size + 2 * sizeof( int32_t ) + sizeof( int_type ) * _m_i().size() );
+        res = header_size + 2 * len_size + sizeof( int_type ) * uint64_t( gc.get_mat_int().size() );
         break;
       case GC_type::MAT_LONG:
-        res = static_cast<int32_t>( header_size + 2 * sizeof( int32_t ) + sizeof( long_type ) * _m_l().size() );
+        res = header_size + 2 * len_size + sizeof( long_type ) * uint64_t( gc.get_mat_long().size() );
         break;
       case GC_type::MAT_REAL:
-        res = static_cast<int32_t>( header_size + 2 * sizeof( int32_t ) + sizeof( real_type ) * _m_r().size() );
+        res = header_size + 2 * len_size + sizeof( real_type ) * uint64_t( gc.get_mat_real().size() );
         break;
       case GC_type::MAT_COMPLEX:
-        res = static_cast<int32_t>( header_size + 2 * sizeof( int32_t ) + sizeof( complex_type ) * _m_c().size() );
+        res = header_size + 2 * len_size + sizeof( complex_type ) * uint64_t( gc.get_mat_complex().size() );
         break;
       case GC_type::VEC_STRING:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) );
-        for ( auto & s : _v_s() ) res += static_cast<int32_t>( sizeof( int32_t ) + s.length() + 1 );
+        res = header_size + len_size;
+        for ( auto & s : gc.get_vec_string() ) res += len_size + s.length() + 1;
         break;
       case GC_type::VECTOR:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) );
-        for ( auto & S : _v() ) res += S.mem_size();
+        res = header_size + len_size;
+        for ( auto & S : gc.get_vector() ) res += gc_mem_size( S );
         break;
       case GC_type::MAP:
-        res = static_cast<int32_t>( header_size + sizeof( int32_t ) );
-        for ( auto & [fst, snd] : _m() )
-          res += static_cast<int32_t>( sizeof( int32_t ) + fst.length() + 1 + static_cast<size_t>( snd.mem_size() ) );
+        res = header_size + len_size;
+        for ( auto & [fst, snd] : gc.get_map() ) res += len_size + fst.length() + 1 + gc_mem_size( snd );
         break;
     }
     return res;
+  }
+
+  int32_t GenericContainer::mem_size() const
+  {
+    uint64_t const res{ gc_mem_size( *this ) };
+    GC_ASSERT(
+      res <= uint64_t( std::numeric_limits<int32_t>::max() ),
+      "GenericContainer::mem_size() serialized size " << res << " exceeds the int32 wire-format limit" );
+    return static_cast<int32_t>( res );
   }
 
   int32_t GenericContainer::serialize( std::vector<uint8_t> & buffer ) const
@@ -484,6 +491,9 @@ namespace GC_namespace
     nbyte = nb = buffer_to_int32( buffer, buffer_dim, &i32 );
     buffer += nb;
 
+    GC_ASSERT(
+      i32 >= 0 && i32 <= static_cast<int32_t>( GC_type::MAP ),
+      "GenericContainer::de_serialize, invalid type tag " << i32 );
     switch ( static_cast<TypeAllowed>( i32 ) )
     {
       case GC_type::NOTYPE: m_data.emplace<std::monostate>(); break;
@@ -549,7 +559,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * 8u <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vec_pointer( static_cast<std::size_t>( i32 ) );
         for ( auto & p : _v_p() )
         {
@@ -564,7 +576,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * 1u <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vec_bool( 0 );
         _v_b().reserve( static_cast<size_t>( i32 ) );
         for ( int32_t i = 0; i < i32; ++i )
@@ -580,7 +594,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * sizeof( int_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vec_int( static_cast<std::size_t>( i32 ) );
         for ( auto & i : _v_i() )
         {
@@ -593,7 +609,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * sizeof( long_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vec_long( static_cast<std::size_t>( i32 ) );
         for ( auto & i : _v_l() )
         {
@@ -606,7 +624,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * sizeof( real_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vec_real( static_cast<std::size_t>( i32 ) );
         for ( auto & r : _v_r() )
         {
@@ -619,7 +639,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * sizeof( complex_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vec_complex( static_cast<std::size_t>( i32 ) );
         for ( auto & c : _v_c() )
         {
@@ -640,7 +662,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
+        GC_ASSERT(
+          nr >= 0 && nc >= 0 && uint64_t( nr ) * uint64_t( nc ) * sizeof( int_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized matrix dimensions" );
         allocate_mat_int( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & i : _m_i() )
         {
@@ -656,7 +680,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
+        GC_ASSERT(
+          nr >= 0 && nc >= 0 && uint64_t( nr ) * uint64_t( nc ) * sizeof( long_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized matrix dimensions" );
         allocate_mat_long( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & i : _m_l() )
         {
@@ -672,7 +698,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
+        GC_ASSERT(
+          nr >= 0 && nc >= 0 && uint64_t( nr ) * uint64_t( nc ) * sizeof( real_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized matrix dimensions" );
         allocate_mat_real( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & r : _m_r() )
         {
@@ -688,7 +716,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &nc );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
+        GC_ASSERT(
+          nr >= 0 && nc >= 0 && uint64_t( nr ) * uint64_t( nc ) * sizeof( complex_type ) <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized matrix dimensions" );
         allocate_mat_complex( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & c : _m_c() )
         {
@@ -706,7 +736,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * 4u <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vec_string( static_cast<std::size_t>( i32 ) );
         for ( auto & s : _v_s() )
         {
@@ -724,7 +756,9 @@ namespace GC_namespace
         nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
         buffer += nb;
         nbyte += nb;
-        GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
+        GC_ASSERT(
+          i32 >= 0 && uint64_t( i32 ) * 4u <= uint64_t( buffer_dim - nbyte ),
+          "GenericContainer::de_serialize, invalid or oversized vector size" );
         allocate_vector( static_cast<std::size_t>( i32 ) );
         for ( auto & S : _v() )
         {
