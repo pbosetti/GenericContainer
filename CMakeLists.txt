@@ -154,7 +154,11 @@ foreach (F ${S})
 endforeach(F ${S})
 
 # extra include directory for compilation
-include_directories( ./include ./src_yaml_interface ./src_json_interface )
+# ./src_yaml_interface is intentionally NOT listed here: it's added as a
+# SYSTEM include for all targets in the loop at the bottom of this file (to
+# silence warnings from the vendored fkYAML header), and a plain -I entry
+# for the same path would take precedence over -isystem, defeating that.
+include_directories( ./include ./src_json_interface )
 
 #  _    _   _   _
 # | |  | | | | / \

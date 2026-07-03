@@ -61,17 +61,6 @@ static bool isZero0( real_type const x )
   return FP_ZERO == c || FP_SUBNORMAL == c;
 }
 
-static bool isInteger( real_type const x )
-{
-  using std::round;
-  return isZero0( x - round( x ) );
-}
-
-static bool isUnsigned( real_type const x )
-{
-  return isInteger( x ) && x >= 0;
-}
-
 #endif
 
 namespace GC_namespace

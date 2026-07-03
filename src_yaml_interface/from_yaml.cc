@@ -45,9 +45,16 @@
 #include <cstdlib>
 
 // #include "yaml-cpp/yaml.h"
+// fkYAML/node.hpp is vendored third-party code; it's included with a quoted
+// path resolved relative to this file's own directory, which bypasses the
+// SYSTEM-marked include path set up for src_yaml_interface in CMakeLists.txt
+// (that only affects lookups going through the compiler's search list, not
+// this same-directory quote-include resolution), so its warnings need to be
+// silenced here instead.
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
+#pragma clang diagnostic ignored "-Wold-style-cast"
 #endif
 #include "fkYAML/node.hpp"
 #ifdef __clang__

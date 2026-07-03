@@ -53,10 +53,17 @@ TEST_CASE( "vector of equal-length numeric vectors collapses to matrix", "[colla
   v[1] = vec_real_type{ 4.0, 5.0, 6.0 };
   gc.collapse();
   CHECK( gc.get_type() == GC_type::MAT_REAL );
-  // pin the orientation: element (i,j)
-  auto const & m = std::as_const( gc ).get_mat_real();
-  INFO( "dims " << gc.num_rows() << "x" << gc.num_cols() );
   CHECK( gc.get_num_elements() == 6 );
+  // pin the orientation: each source vector becomes a column
+  auto const & m = std::as_const( gc ).get_mat_real();
+  REQUIRE( gc.num_rows() == 3 );
+  REQUIRE( gc.num_cols() == 2 );
+  CHECK( m( 0, 0 ) == 1.0 );
+  CHECK( m( 1, 0 ) == 2.0 );
+  CHECK( m( 2, 0 ) == 3.0 );
+  CHECK( m( 0, 1 ) == 4.0 );
+  CHECK( m( 1, 1 ) == 5.0 );
+  CHECK( m( 2, 1 ) == 6.0 );
 }
 
 TEST_CASE( "heterogeneous vector stays VECTOR", "[collapse]" )

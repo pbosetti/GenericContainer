@@ -14,6 +14,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable( Catch2 )
 
+# Catch2's own sources are compiled with this project's global warning flags
+# (CMAKE_CXX_FLAGS is directory-scoped, so it reaches this fetched
+# subdirectory too); silence them for the vendored targets only, since we
+# don't maintain that code and marking include dirs SYSTEM (as done for
+# other 3rd-party code at the bottom of the top-level CMakeLists.txt)
+# doesn't suppress diagnostics from a target's own translation units.
+foreach( catch2_target Catch2 Catch2WithMain )
+  if ( TARGET ${catch2_target} )
+    target_compile_options( ${catch2_target} PRIVATE -w )
+  endif()
+endforeach()
+
 file( GLOB GC_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cc" )
 
 add_executable( gc_unit_tests ${GC_TEST_SOURCES} )

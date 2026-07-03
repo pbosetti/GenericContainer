@@ -55,17 +55,6 @@ namespace GC_namespace
     return FP_ZERO == c || FP_SUBNORMAL == c;
   }
 
-  static bool isInteger( real_type const x )
-  {
-    using std::round;
-    return isZero0( x - round( x ) );
-  }
-
-  static bool isUnsigned( real_type const x )
-  {
-    return isInteger( x ) && x >= 0;
-  }
-
 #endif
 
   // ---------------------------------------------------------------------------
@@ -1601,7 +1590,7 @@ namespace GC_namespace
       {
         auto const m_i{ take_box<mat_int_type>() };
         set_mat_long( m_i->num_rows(), m_i->num_cols() );
-        for ( std::size_t i{ 0 }; i < m_i->size(); ++i ) _m_l()[i] = static_cast<long_type>( ( *m_i )[i] );
+        for ( std::size_t i{ 0 }; i < static_cast<std::size_t>( m_i->size() ); ++i ) _m_l()[i] = static_cast<long_type>( ( *m_i )[i] );
       }
       break;
       case GC_type::MAT_LONG: break;
@@ -1686,14 +1675,14 @@ namespace GC_namespace
       {
         auto const m_i{ take_box<mat_int_type>() };
         set_mat_real( m_i->num_rows(), m_i->num_cols() );
-        for ( std::size_t i{ 0 }; i < m_i->size(); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_i )[i] );
+        for ( std::size_t i{ 0 }; i < static_cast<std::size_t>( m_i->size() ); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_i )[i] );
       }
       break;
       case GC_type::MAT_LONG:
       {
         auto const m_l{ take_box<mat_long_type>() };
         set_mat_real( m_l->num_rows(), m_l->num_cols() );
-        for ( std::size_t i{ 0 }; i < m_l->size(); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_l )[i] );
+        for ( std::size_t i{ 0 }; i < static_cast<std::size_t>( m_l->size() ); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_l )[i] );
       }
       break;
       case GC_type::MAT_REAL: break;
@@ -1782,7 +1771,7 @@ namespace GC_namespace
       {
         auto const m_i{ take_box<mat_int_type>() };
         set_mat_complex( m_i->num_rows(), m_i->num_cols() );
-        for ( std::size_t i{ 0 }; i < m_i->size(); ++i )
+        for ( std::size_t i{ 0 }; i < static_cast<std::size_t>( m_i->size() ); ++i )
           _m_c()[i] = complex_type( static_cast<real_type>( ( *m_i )[i] ), 0 );
       }
       break;
@@ -1790,7 +1779,7 @@ namespace GC_namespace
       {
         auto const m_l{ take_box<mat_long_type>() };
         set_mat_complex( m_l->num_rows(), m_l->num_cols() );
-        for ( std::size_t i{ 0 }; i < m_l->size(); ++i )
+        for ( std::size_t i{ 0 }; i < static_cast<std::size_t>( m_l->size() ); ++i )
           _m_c()[i] = complex_type( static_cast<real_type>( ( *m_l )[i] ), 0 );
       }
       break;
@@ -1798,7 +1787,7 @@ namespace GC_namespace
       {
         auto const m_r{ take_box<mat_real_type>() };
         set_mat_complex( m_r->num_rows(), m_r->num_cols() );
-        for ( std::size_t i{ 0 }; i < m_r->size(); ++i ) _m_c()[i] = complex_type( ( *m_r )[i], 0 );
+        for ( std::size_t i{ 0 }; i < static_cast<std::size_t>( m_r->size() ); ++i ) _m_c()[i] = complex_type( ( *m_r )[i], 0 );
       }
       break;
       case GC_type::MAT_COMPLEX: break;
