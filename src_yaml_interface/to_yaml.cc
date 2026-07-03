@@ -154,14 +154,14 @@ namespace GC_namespace
         break;
       }
 #define GC_PRINT_MATRIX                  \
-  unsigned NR{ M.num_rows() };           \
-  unsigned NC{ M.num_cols() };           \
+  std::size_t NR{ M.num_rows() };           \
+  std::size_t NC{ M.num_cols() };           \
   stream << '\n';                        \
-  for ( unsigned j{ 0 }; j < NC; ++j )   \
+  for ( std::size_t j{ 0 }; j < NC; ++j )   \
   {                                      \
     stream << prefix;                    \
     char const * pre = "- [ ";           \
-    for ( unsigned i{ 0 }; i < NR; ++i ) \
+    for ( std::size_t i{ 0 }; i < NR; ++i ) \
     {                                    \
       stream << pre << M( i, j );        \
       pre = ", ";                        \
@@ -170,12 +170,12 @@ namespace GC_namespace
   }
 
 #define GC_PRINT_MATRIXT                                 \
-  unsigned NR{ M.num_rows() };                           \
-  unsigned NC{ M.num_cols() };                           \
+  std::size_t NR{ M.num_rows() };                           \
+  std::size_t NC{ M.num_cols() };                           \
   stream << '\n';                                        \
-  for ( unsigned i{ 0 }; i < NR; ++i ) stream << prefix; \
+  for ( std::size_t i{ 0 }; i < NR; ++i ) stream << prefix; \
   char const * pre = "- [ ";                             \
-  for ( unsigned j{ 0 }; j < NC; ++j )                   \
+  for ( std::size_t j{ 0 }; j < NC; ++j )                   \
   {                                                      \
     {                                                    \
       stream << pre << M( i, j );                        \

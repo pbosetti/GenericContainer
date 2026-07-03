@@ -161,14 +161,14 @@ namespace GC_namespace
         break;
       }
 #define GC_PRINT_MATRIX( MDATA )         \
-  unsigned NR{ M.num_rows() };           \
-  unsigned NC{ M.num_cols() };           \
+  std::size_t NR{ M.num_rows() };           \
+  std::size_t NC{ M.num_cols() };           \
   stream << "[\n";                       \
   string pre0 = prefix1 + "[ ";          \
-  for ( unsigned j{ 0 }; j < NC; ++j )   \
+  for ( std::size_t j{ 0 }; j < NC; ++j )   \
   {                                      \
     string pre{ pre0 };                  \
-    for ( unsigned i{ 0 }; i < NR; ++i ) \
+    for ( std::size_t i{ 0 }; i < NR; ++i ) \
     {                                    \
       stream << pre << MDATA;            \
       pre = ", ";                        \

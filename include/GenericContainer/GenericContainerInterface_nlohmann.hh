@@ -125,12 +125,12 @@ namespace nlohmann
         {
           auto const & M{ gc.get_mat_complex() };
           json         arr = json::array();
-          unsigned const NR{ M.num_rows() };
-          unsigned const NC{ M.num_cols() };
-          for ( unsigned jc{ 0 }; jc < NC; ++jc )
+          std::size_t const NR{ M.num_rows() };
+          std::size_t const NC{ M.num_cols() };
+          for ( std::size_t jc{ 0 }; jc < NC; ++jc )
           {
             json col = json::array();
-            for ( unsigned ir{ 0 }; ir < NR; ++ir ) col.push_back( GC_namespace::to_string( M( ir, jc ) ) );
+            for ( std::size_t ir{ 0 }; ir < NR; ++ir ) col.push_back( GC_namespace::to_string( M( ir, jc ) ) );
             arr.push_back( std::move( col ) );
           }
           j = std::move( arr );
@@ -160,12 +160,12 @@ namespace nlohmann
     matrix_to_json( Mat const & M )
     {
       json           arr = json::array();
-      unsigned const NR{ M.num_rows() };
-      unsigned const NC{ M.num_cols() };
-      for ( unsigned jc{ 0 }; jc < NC; ++jc )
+      std::size_t const NR{ M.num_rows() };
+      std::size_t const NC{ M.num_cols() };
+      for ( std::size_t jc{ 0 }; jc < NC; ++jc )
       {
         json col = json::array();
-        for ( unsigned ir{ 0 }; ir < NR; ++ir ) col.push_back( M( ir, jc ) );
+        for ( std::size_t ir{ 0 }; ir < NR; ++ir ) col.push_back( M( ir, jc ) );
         arr.push_back( std::move( col ) );
       }
       return arr;
@@ -208,7 +208,7 @@ namespace nlohmann
       else if ( j.is_string() ) { gc = j.get<std::string>(); }
       else if ( j.is_array() )
       {
-        auto & V{ gc.set_vector( static_cast<unsigned>( j.size() ) ) };
+        auto & V{ gc.set_vector( j.size() ) };
         for ( std::size_t i{ 0 }; i < j.size(); ++i ) from_json_value( j[i], V[i] );
       }
       else if ( j.is_object() )

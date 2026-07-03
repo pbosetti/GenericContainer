@@ -144,84 +144,15 @@ namespace GC_namespace
 
 #endif
 
-  template <typename TYPE> TYPE const & mat_type<TYPE>::operator()( unsigned i, unsigned j ) const
-  {
-    try
-    {
-      return this->at( i + j * m_num_rows );
-    }
-    catch ( std::exception const & exc )
-    {
-      GC_DO_ERROR( "mat_type::operator() (" << i << ", " << j << "): " << exc.what() << '\n' );
-    }
-    catch ( ... )
-    {
-      GC_DO_ERROR( "mat_type::operator() (" << i << ", " << j << "): unknown error\n" );
-    }
-  }
-
-  template <typename TYPE> TYPE & mat_type<TYPE>::operator()( unsigned i, unsigned j )
-  {
-    try
-    {
-      return this->at( i + j * m_num_rows );
-    }
-    catch ( std::exception const & exc )
-    {
-      GC_DO_ERROR( "mat_type::operator() (" << i << ", " << j << "): " << exc.what() << '\n' );
-    }
-    catch ( ... )
-    {
-      GC_DO_ERROR( "mat_type::operator() (" << i << ", " << j << "): unknown error\n" );
-    }
-  }
-
-  template <typename TYPE> void mat_type<TYPE>::get_column( unsigned nc, std::vector<TYPE> & C ) const
-  {
-    GC_ASSERT(
-      nc < m_num_cols,
-      "mat_type::get_column(" << nc << ",C) column index out of range max = " << m_num_cols - 1 );
-    C.clear();
-    C.reserve( m_num_rows );
-    for ( unsigned i{ 0 }; i < m_num_rows; ++i ) C.push_back( ( *this )( i, nc ) );
-  }
-
-  template <typename TYPE> void mat_type<TYPE>::get_column( unsigned nc, TYPE * C ) const
-  {
-    GC_ASSERT(
-      nc < m_num_cols,
-      "mat_type::get_column(" << nc << ",C) column index out of range max = " << m_num_cols - 1 );
-    for ( unsigned i{ 0 }; i < m_num_rows; ++i ) *C++ = ( *this )( i, nc );
-  }
-
-  template <typename TYPE> void mat_type<TYPE>::get_row( unsigned nr, std::vector<TYPE> & R ) const
-  {
-    GC_ASSERT( nr < m_num_rows, "mat_type::get_row(" << nr << ",C) row index out of range max = " << m_num_rows - 1 );
-    R.clear();
-    R.reserve( m_num_cols );
-    for ( unsigned j{ 0 }; j < m_num_cols; ++j ) R.push_back( ( *this )( nr, j ) );
-  }
-
-  template <typename TYPE> void mat_type<TYPE>::get_row( unsigned nr, TYPE * R ) const
-  {
-    GC_ASSERT( nr < m_num_rows, "mat_type::get_row(" << nr << ",C) row index out of range max = " << m_num_rows - 1 );
-    for ( unsigned j{ 0 }; j < m_num_cols; ++j ) *R++ = ( *this )( nr, j );
-  }
-
-  template <typename TYPE> void mat_type<TYPE>::info( ostream_type & stream ) const
-  {
-    stream << "Matrix of floating point number of size " << m_num_rows << " x " << m_num_cols << '\n';
-  }
-
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
   template <typename TYPE> ostream_type & operator<<( ostream_type & s, mat_type<TYPE> const & mat )
   {
     if ( mat.num_rows() > 0 && mat.num_cols() )
     {
-      for ( unsigned i{ 0 }; i < mat.num_rows(); ++i )
+      for ( std::size_t i{ 0 }; i < mat.num_rows(); ++i )
       {
         s << std::setw( 8 ) << mat( i, 0 );
-        for ( unsigned j{ 1 }; j < mat.num_cols(); ++j ) s << " " << std::setw( 8 ) << mat( i, j );
+        for ( std::size_t j{ 1 }; j < mat.num_cols(); ++j ) s << " " << std::setw( 8 ) << mat( i, j );
         s << '\n';
       }
     }
@@ -236,10 +167,10 @@ namespace GC_namespace
   {
     if ( m.num_rows() > 0 && m.num_cols() )
     {
-      for ( unsigned i{ 0 }; i < m.num_rows(); ++i )
+      for ( std::size_t i{ 0 }; i < m.num_rows(); ++i )
       {
         s << std::setw( 8 ) << m( i, 0 );
-        for ( unsigned j{ 1 }; j < m.num_cols(); ++j ) s << " " << std::setw( 12 ) << to_string( m( i, j ) );
+        for ( std::size_t j{ 1 }; j < m.num_cols(); ++j ) s << " " << std::setw( 12 ) << to_string( m( i, j ) );
         s << '\n';
       }
     }
@@ -351,14 +282,14 @@ namespace GC_namespace
 
   GenericContainer & GenericContainer::operator=( vec_bool_type const & a )
   {
-    set_vec_bool( static_cast<unsigned>( a.size() ) );
+    set_vec_bool( static_cast<std::size_t>( a.size() ) );
     std::copy( a.begin(), a.end(), _v_b().begin() );
     return *this;
   }
 
   GenericContainer & GenericContainer::operator=( vec_int_type const & a )
   {
-    set_vec_int( static_cast<unsigned>( a.size() ) );
+    set_vec_int( static_cast<std::size_t>( a.size() ) );
     std::copy( a.begin(), a.end(), _v_i().begin() );
     return *this;
   }
@@ -447,9 +378,9 @@ namespace GC_namespace
     ostringstream data;
     if ( A.num_rows() == B.num_rows() && A.num_cols() == B.num_cols() )
     {
-      for ( unsigned i{ 0 }; i < A.num_rows(); ++i )
+      for ( std::size_t i{ 0 }; i < A.num_rows(); ++i )
       {
-        for ( unsigned j{ 0 }; j < A.num_cols(); ++j )
+        for ( std::size_t j{ 0 }; j < A.num_cols(); ++j )
         {
           TYPE const & Aij = A( i, j );
           TYPE const & Bij = B( i, j );
@@ -555,7 +486,7 @@ namespace GC_namespace
             // controllo contenutp
             auto     it1 = _v().begin();
             auto     it2 = gc._v().begin();
-            unsigned i{ 0 };
+            std::size_t i{ 0 };
             while ( it1 != _v().end() )
             {
               if ( string const res{ it1->compare_content( *it2, "> " ) }; !res.empty() )
@@ -626,7 +557,7 @@ namespace GC_namespace
     _m().erase( string( name ) );
   }
 
-  unsigned GenericContainer::get_num_elements() const
+  std::size_t GenericContainer::get_num_elements() const
   {
     switch ( get_type() )
     {
@@ -638,27 +569,27 @@ namespace GC_namespace
       case GC_type::COMPLEX:
       case GC_type::STRING: return 1;
 
-      case GC_type::VEC_POINTER: return static_cast<unsigned>( _v_p().size() );
-      case GC_type::VEC_BOOL: return static_cast<unsigned>( _v_b().size() );
-      case GC_type::VEC_INTEGER: return static_cast<unsigned>( _v_i().size() );
-      case GC_type::VEC_LONG: return static_cast<unsigned>( _v_l().size() );
-      case GC_type::VEC_REAL: return static_cast<unsigned>( _v_r().size() );
-      case GC_type::VEC_COMPLEX: return static_cast<unsigned>( _v_c().size() );
-      case GC_type::VEC_STRING: return static_cast<unsigned>( _v_s().size() );
+      case GC_type::VEC_POINTER: return static_cast<std::size_t>( _v_p().size() );
+      case GC_type::VEC_BOOL: return static_cast<std::size_t>( _v_b().size() );
+      case GC_type::VEC_INTEGER: return static_cast<std::size_t>( _v_i().size() );
+      case GC_type::VEC_LONG: return static_cast<std::size_t>( _v_l().size() );
+      case GC_type::VEC_REAL: return static_cast<std::size_t>( _v_r().size() );
+      case GC_type::VEC_COMPLEX: return static_cast<std::size_t>( _v_c().size() );
+      case GC_type::VEC_STRING: return static_cast<std::size_t>( _v_s().size() );
 
-      case GC_type::MAT_INTEGER: return static_cast<unsigned>( _m_i().size() );
-      case GC_type::MAT_LONG: return static_cast<unsigned>( _m_l().size() );
-      case GC_type::MAT_REAL: return static_cast<unsigned>( _m_r().size() );
-      case GC_type::MAT_COMPLEX: return static_cast<unsigned>( _m_c().size() );
+      case GC_type::MAT_INTEGER: return static_cast<std::size_t>( _m_i().size() );
+      case GC_type::MAT_LONG: return static_cast<std::size_t>( _m_l().size() );
+      case GC_type::MAT_REAL: return static_cast<std::size_t>( _m_r().size() );
+      case GC_type::MAT_COMPLEX: return static_cast<std::size_t>( _m_c().size() );
 
-      case GC_type::VECTOR: return static_cast<unsigned>( _v().size() );
-      case GC_type::MAP: return static_cast<unsigned>( _m().size() );
+      case GC_type::VECTOR: return static_cast<std::size_t>( _v().size() );
+      case GC_type::MAP: return static_cast<std::size_t>( _m().size() );
       case GC_type::NOTYPE: return 0;
     }
     return 0;
   }
 
-  unsigned GenericContainer::num_rows() const
+  std::size_t GenericContainer::num_rows() const
   {
     switch ( get_type() )
     {
@@ -687,7 +618,7 @@ namespace GC_namespace
     return 0;
   }
 
-  unsigned GenericContainer::num_cols() const
+  std::size_t GenericContainer::num_cols() const
   {
     switch ( get_type() )
     {
@@ -698,21 +629,21 @@ namespace GC_namespace
       case GC_type::REAL:
       case GC_type::COMPLEX:
       case GC_type::STRING: return 1;
-      case GC_type::VEC_POINTER: return static_cast<unsigned>( _v_p().size() );
-      case GC_type::VEC_BOOL: return static_cast<unsigned>( _v_b().size() );
-      case GC_type::VEC_INTEGER: return static_cast<unsigned>( _v_i().size() );
-      case GC_type::VEC_LONG: return static_cast<unsigned>( _v_l().size() );
-      case GC_type::VEC_REAL: return static_cast<unsigned>( _v_r().size() );
-      case GC_type::VEC_COMPLEX: return static_cast<unsigned>( _v_c().size() );
-      case GC_type::VEC_STRING: return static_cast<unsigned>( _v_s().size() );
+      case GC_type::VEC_POINTER: return static_cast<std::size_t>( _v_p().size() );
+      case GC_type::VEC_BOOL: return static_cast<std::size_t>( _v_b().size() );
+      case GC_type::VEC_INTEGER: return static_cast<std::size_t>( _v_i().size() );
+      case GC_type::VEC_LONG: return static_cast<std::size_t>( _v_l().size() );
+      case GC_type::VEC_REAL: return static_cast<std::size_t>( _v_r().size() );
+      case GC_type::VEC_COMPLEX: return static_cast<std::size_t>( _v_c().size() );
+      case GC_type::VEC_STRING: return static_cast<std::size_t>( _v_s().size() );
 
       case GC_type::MAT_INTEGER: return _m_i().num_cols();
       case GC_type::MAT_LONG: return _m_l().num_cols();
       case GC_type::MAT_REAL: return _m_r().num_cols();
       case GC_type::MAT_COMPLEX: return _m_c().num_cols();
 
-      case GC_type::VECTOR: return static_cast<unsigned>( _v().size() );
-      case GC_type::MAP: return static_cast<unsigned>( _m().size() );
+      case GC_type::VECTOR: return static_cast<std::size_t>( _v().size() );
+      case GC_type::MAP: return static_cast<std::size_t>( _m().size() );
       case GC_type::NOTYPE: return 0;
     }
     return 0;
@@ -776,7 +707,7 @@ namespace GC_namespace
     if ( get_type() != GC_type::COMPLEX ) reset_to<complex_type>();
   }
 
-  void GenericContainer::allocate_vec_pointer( unsigned const sz )
+  void GenericContainer::allocate_vec_pointer( std::size_t const sz )
   {
     if ( get_type() != GC_type::VEC_POINTER ) reset_to<vec_pointer_type>();
     if ( sz > 0 ) _v_p().resize( sz );
@@ -793,37 +724,37 @@ namespace GC_namespace
     return *this;
   }
 
-  void GenericContainer::allocate_vec_bool( unsigned const sz )
+  void GenericContainer::allocate_vec_bool( std::size_t const sz )
   {
     if ( get_type() != GC_type::VEC_BOOL ) reset_to<vec_bool_type>();
     if ( sz > 0 ) _v_b().resize( sz );
   }
 
-  void GenericContainer::allocate_vec_int( unsigned const sz )
+  void GenericContainer::allocate_vec_int( std::size_t const sz )
   {
     if ( get_type() != GC_type::VEC_INTEGER ) reset_to<vec_int_type>();
     if ( sz > 0 ) _v_i().resize( sz );
   }
 
-  void GenericContainer::allocate_vec_long( unsigned const sz )
+  void GenericContainer::allocate_vec_long( std::size_t const sz )
   {
     if ( get_type() != GC_type::VEC_LONG ) reset_to<vec_long_type>();
     if ( sz > 0 ) _v_l().resize( sz );
   }
 
-  void GenericContainer::allocate_vec_real( unsigned const sz )
+  void GenericContainer::allocate_vec_real( std::size_t const sz )
   {
     if ( get_type() != GC_type::VEC_REAL ) reset_to<vec_real_type>();
     if ( sz > 0 ) _v_r().resize( sz );
   }
 
-  void GenericContainer::allocate_vec_complex( unsigned const sz )
+  void GenericContainer::allocate_vec_complex( std::size_t const sz )
   {
     if ( get_type() != GC_type::VEC_COMPLEX ) reset_to<vec_complex_type>();
     if ( sz > 0 ) _v_c().resize( sz );
   }
 
-  void GenericContainer::allocate_mat_int( unsigned const nr, unsigned const nc )
+  void GenericContainer::allocate_mat_int( std::size_t const nr, std::size_t const nc )
   {
     if ( get_type() != GC_type::MAT_INTEGER )
       reset_to<mat_int_type>( nr, nc );
@@ -831,7 +762,7 @@ namespace GC_namespace
       _m_i().resize( nr, nc );
   }
 
-  void GenericContainer::allocate_mat_long( unsigned const nr, unsigned const nc )
+  void GenericContainer::allocate_mat_long( std::size_t const nr, std::size_t const nc )
   {
     if ( get_type() != GC_type::MAT_LONG )
       reset_to<mat_long_type>( nr, nc );
@@ -839,7 +770,7 @@ namespace GC_namespace
       _m_l().resize( nr, nc );
   }
 
-  void GenericContainer::allocate_mat_real( unsigned const nr, unsigned const nc )
+  void GenericContainer::allocate_mat_real( std::size_t const nr, std::size_t const nc )
   {
     if ( get_type() != GC_type::MAT_REAL )
       reset_to<mat_real_type>( nr, nc );
@@ -847,7 +778,7 @@ namespace GC_namespace
       _m_r().resize( nr, nc );
   }
 
-  void GenericContainer::allocate_mat_complex( unsigned const nr, unsigned const nc )
+  void GenericContainer::allocate_mat_complex( std::size_t const nr, std::size_t const nc )
   {
     if ( get_type() != GC_type::MAT_COMPLEX )
       reset_to<mat_complex_type>( nr, nc );
@@ -855,13 +786,13 @@ namespace GC_namespace
       _m_c().resize( nr, nc );
   }
 
-  void GenericContainer::allocate_vec_string( unsigned const sz )
+  void GenericContainer::allocate_vec_string( std::size_t const sz )
   {
     if ( get_type() != GC_type::VEC_STRING ) reset_to<vec_string_type>();
     if ( sz > 0 ) _v_s().resize( sz );
   }
 
-  void GenericContainer::allocate_vector( unsigned const sz )
+  void GenericContainer::allocate_vector( std::size_t const sz )
   {
     if ( get_type() != GC_type::VECTOR ) reset_to<vector_type>();
     if ( sz > 0 ) _v().resize( sz );
@@ -921,7 +852,7 @@ namespace GC_namespace
     return ( _s() = value );
   }
 
-  vec_pointer_type & GenericContainer::set_vec_pointer( unsigned const sz )
+  vec_pointer_type & GenericContainer::set_vec_pointer( std::size_t const sz )
   {
     allocate_vec_pointer( sz );
     return _v_p();
@@ -929,12 +860,12 @@ namespace GC_namespace
 
   vec_pointer_type & GenericContainer::set_vec_pointer( vec_pointer_type const & v )
   {
-    allocate_vec_pointer( static_cast<unsigned>( v.size() ) );
+    allocate_vec_pointer( static_cast<std::size_t>( v.size() ) );
     std::copy( v.begin(), v.end(), _v_p().begin() );
     return _v_p();
   }
 
-  vec_bool_type & GenericContainer::set_vec_bool( unsigned const sz )
+  vec_bool_type & GenericContainer::set_vec_bool( std::size_t const sz )
   {
     allocate_vec_bool( sz );
     return _v_b();
@@ -942,12 +873,12 @@ namespace GC_namespace
 
   vec_bool_type & GenericContainer::set_vec_bool( vec_bool_type const & v )
   {
-    allocate_vec_bool( static_cast<unsigned>( v.size() ) );
+    allocate_vec_bool( static_cast<std::size_t>( v.size() ) );
     std::copy( v.begin(), v.end(), _v_b().begin() );
     return _v_b();
   }
 
-  vec_int_type & GenericContainer::set_vec_int( unsigned const sz )
+  vec_int_type & GenericContainer::set_vec_int( std::size_t const sz )
   {
     allocate_vec_int( sz );
     return _v_i();
@@ -955,12 +886,12 @@ namespace GC_namespace
 
   vec_int_type & GenericContainer::set_vec_int( vec_int_type const & v )
   {
-    allocate_vec_int( static_cast<unsigned>( v.size() ) );
+    allocate_vec_int( static_cast<std::size_t>( v.size() ) );
     std::copy( v.begin(), v.end(), _v_i().begin() );
     return _v_i();
   }
 
-  vec_long_type & GenericContainer::set_vec_long( unsigned const sz )
+  vec_long_type & GenericContainer::set_vec_long( std::size_t const sz )
   {
     allocate_vec_long( sz );
     return _v_l();
@@ -968,12 +899,12 @@ namespace GC_namespace
 
   vec_long_type & GenericContainer::set_vec_long( vec_long_type const & v )
   {
-    allocate_vec_long( static_cast<unsigned>( v.size() ) );
+    allocate_vec_long( static_cast<std::size_t>( v.size() ) );
     std::copy( v.begin(), v.end(), _v_l().begin() );
     return _v_l();
   }
 
-  vec_real_type & GenericContainer::set_vec_real( unsigned const sz )
+  vec_real_type & GenericContainer::set_vec_real( std::size_t const sz )
   {
     allocate_vec_real( sz );
     return _v_r();
@@ -981,12 +912,12 @@ namespace GC_namespace
 
   vec_real_type & GenericContainer::set_vec_real( vec_real_type const & v )
   {
-    allocate_vec_real( static_cast<unsigned>( v.size() ) );
+    allocate_vec_real( static_cast<std::size_t>( v.size() ) );
     std::copy( v.begin(), v.end(), _v_r().begin() );
     return _v_r();
   }
 
-  vec_complex_type & GenericContainer::set_vec_complex( unsigned const sz )
+  vec_complex_type & GenericContainer::set_vec_complex( std::size_t const sz )
   {
     allocate_vec_complex( sz );
     return _v_c();
@@ -994,12 +925,12 @@ namespace GC_namespace
 
   vec_complex_type & GenericContainer::set_vec_complex( vec_complex_type const & v )
   {
-    allocate_vec_complex( static_cast<unsigned>( v.size() ) );
+    allocate_vec_complex( static_cast<std::size_t>( v.size() ) );
     std::copy( v.begin(), v.end(), _v_c().begin() );
     return _v_c();
   }
 
-  mat_int_type & GenericContainer::set_mat_int( unsigned const nr, unsigned const nc )
+  mat_int_type & GenericContainer::set_mat_int( std::size_t const nr, std::size_t const nc )
   {
     allocate_mat_int( nr, nc );
     return _m_i();
@@ -1012,7 +943,7 @@ namespace GC_namespace
     return _m_i();
   }
 
-  mat_long_type & GenericContainer::set_mat_long( unsigned const nr, unsigned const nc )
+  mat_long_type & GenericContainer::set_mat_long( std::size_t const nr, std::size_t const nc )
   {
     allocate_mat_long( nr, nc );
     return _m_l();
@@ -1025,7 +956,7 @@ namespace GC_namespace
     return _m_l();
   }
 
-  mat_real_type & GenericContainer::set_mat_real( unsigned const nr, unsigned const nc )
+  mat_real_type & GenericContainer::set_mat_real( std::size_t const nr, std::size_t const nc )
   {
     allocate_mat_real( nr, nc );
     return _m_r();
@@ -1038,7 +969,7 @@ namespace GC_namespace
     return _m_r();
   }
 
-  mat_complex_type & GenericContainer::set_mat_complex( unsigned const nr, unsigned const nc )
+  mat_complex_type & GenericContainer::set_mat_complex( std::size_t const nr, std::size_t const nc )
   {
     allocate_mat_complex( nr, nc );
     return _m_c();
@@ -1051,7 +982,7 @@ namespace GC_namespace
     return _m_c();
   }
 
-  vec_string_type & GenericContainer::set_vec_string( unsigned const sz )
+  vec_string_type & GenericContainer::set_vec_string( std::size_t const sz )
   {
     allocate_vec_string( sz );
     return _v_s();
@@ -1059,12 +990,12 @@ namespace GC_namespace
 
   vec_string_type & GenericContainer::set_vec_string( vec_string_type const & v )
   {
-    allocate_vec_string( static_cast<unsigned>( v.size() ) );
+    allocate_vec_string( static_cast<std::size_t>( v.size() ) );
     std::copy( v.begin(), v.end(), _v_s().begin() );
     return _v_s();
   }
 
-  vector_type & GenericContainer::set_vector( unsigned const sz )
+  vector_type & GenericContainer::set_vector( std::size_t const sz )
   {
     allocate_vector( sz );
     return _v();
@@ -1465,31 +1396,31 @@ namespace GC_namespace
       case GC_type::BOOL: v = _b() ? 1 : 0; break;
       case GC_type::INTEGER:
         GC_ASSERT(
-          _i() >= 0,
+          std::in_range<uint_type>( _i() ),
           where << " in get_value(...) negative `integer` value '" << _i()
                 << "' cannot be converted into `uint_type'" )
-        v = static_cast<unsigned>( _i() );
+        v = static_cast<uint_type>( _i() );
         break;
       case GC_type::LONG:
         GC_ASSERT(
-          _l() >= 0,
+          std::in_range<uint_type>( _l() ),
           where << " in get_value(...) negative `long` value '" << _l()
                 << "' cannot be converted into `uint_type'" )
-        v = static_cast<unsigned>( _l() );
+        v = static_cast<uint_type>( _l() );
         break;
       case GC_type::REAL:
         GC_ASSERT(
-          _r() >= 0 && isUnsigned( _r() ),
+          _r() >= 0 && GC_details::real_fits_integral<uint_type>( _r() ),
           where << " in get_value(...) negative or fractional `real` value '" << _r()
                 << "' cannot be converted into `uint_type'" )
-        v = static_cast<unsigned>( _r() );
+        v = static_cast<uint_type>( _r() );
         break;
       case GC_type::COMPLEX:
         GC_ASSERT(
-          isZero0( _c().imag() ) && isUnsigned( _c().real() ),
+          isZero0( _c().imag() ) && GC_details::real_fits_integral<uint_type>( _c().real() ),
           where << " in get_value(...) `complex` value = " << to_string( _c() )
                 << " cannot be converted into `uint_type'" )
-        v = static_cast<unsigned>( _c().real() );
+        v = static_cast<uint_type>( _c().real() );
         break;
       case GC_type::NOTYPE:
       case GC_type::POINTER:
@@ -1518,17 +1449,23 @@ namespace GC_namespace
     {
       case GC_type::BOOL: v = _b() ? 1 : 0; break;
       case GC_type::INTEGER: v = _i(); break;
-      case GC_type::LONG: v = static_cast<int>( _l() ); break;
+      case GC_type::LONG:
+        GC_ASSERT(
+          std::in_range<int_type>( _l() ),
+          where << " in get_value(...) out of range `long` value '" << _l()
+                << "' cannot be converted into `int_type'" )
+        v = static_cast<int_type>( _l() );
+        break;
       case GC_type::REAL:
         GC_ASSERT(
-          isInteger( _r() ),
+          GC_details::real_fits_integral<int_type>( _r() ),
           where << " in get_value(...) fractional `real` value '" << _r()
                 << "' cannot be converted into `int_type'" )
         v = static_cast<int>( _r() );
         break;
       case GC_type::COMPLEX:
         GC_ASSERT(
-          isZero0( _c().imag() ) && isInteger( _c().real() ),
+          isZero0( _c().imag() ) && GC_details::real_fits_integral<int_type>( _c().real() ),
           where << " in get_value(...) `complex` value = " << to_string( _c() )
                 << " cannot be converted into `int_type'" )
         v = static_cast<int>( _c().real() );
@@ -1562,28 +1499,28 @@ namespace GC_namespace
       case GC_type::BOOL: v = _b() ? 1 : 0; break;
       case GC_type::INTEGER:
         GC_ASSERT(
-          _i() >= 0,
+          std::in_range<ulong_type>( _i() ),
           where << " in get_value(...) negative `integer` value '" << _i()
                 << "' cannot be converted into `ulong_type'" )
         v = static_cast<ulong_type>( _i() );
         break;
       case GC_type::LONG:
         GC_ASSERT(
-          _l() >= 0,
+          std::in_range<ulong_type>( _l() ),
           where << " in get_value(...) negative `long` value '" << _l()
                 << "' cannot be converted into `ulong_type'" )
         v = static_cast<ulong_type>( _l() );
         break;
       case GC_type::REAL:
         GC_ASSERT(
-          _r() >= 0 && isUnsigned( _r() ),
+          _r() >= 0 && GC_details::real_fits_integral<ulong_type>( _r() ),
           where << " in get_value(...) negative or fractional `real` value '" << _r()
                 << "' cannot be converted into `ulong_type'" )
         v = static_cast<ulong_type>( _r() );
         break;
       case GC_type::COMPLEX:
         GC_ASSERT(
-          isZero0( _c().imag() ) && isUnsigned( _c().real() ),
+          isZero0( _c().imag() ) && GC_details::real_fits_integral<ulong_type>( _c().real() ),
           where << " in get_value(...) `complex` value " << to_string( _c() )
                 << " cannot be converted into `ulong_type'" )
         v = static_cast<ulong_type>( _c().real() );
@@ -1619,14 +1556,14 @@ namespace GC_namespace
       case GC_type::LONG: v = static_cast<long>( _l() ); break;
       case GC_type::REAL:
         GC_ASSERT(
-          isInteger( _r() ),
+          GC_details::real_fits_integral<long_type>( _r() ),
           where << " in get_value(...) fractional `real` value '" << _r()
                 << "' cannot be converted into `long_type'" )
         v = static_cast<long>( _r() );
         break;
       case GC_type::COMPLEX:
         GC_ASSERT(
-          isZero0( _c().imag() ) && isInteger( _c().real() ),
+          isZero0( _c().imag() ) && GC_details::real_fits_integral<long_type>( _c().real() ),
           where << " in get_value(...) `complex` value = " << to_string( _c() )
                 << " cannot be converted into `long_type'" )
         v = static_cast<long>( _c().real() );
@@ -1813,7 +1750,7 @@ namespace GC_namespace
     im = tmp.imag();
   }
 
-  real_type GenericContainer::get_number_at( unsigned const i, string_view const where ) const
+  real_type GenericContainer::get_number_at( std::size_t const i, string_view const where ) const
   {
     switch ( get_type() )
     {
@@ -1845,7 +1782,7 @@ namespace GC_namespace
     return 0;
   }
 
-  complex_type GenericContainer::get_complex_number_at( unsigned const i, string_view const where ) const
+  complex_type GenericContainer::get_complex_number_at( std::size_t const i, string_view const where ) const
   {
     switch ( get_type() )
     {
@@ -1878,7 +1815,7 @@ namespace GC_namespace
   }
 
   void GenericContainer::get_complex_number_at(
-    unsigned const    i,
+    std::size_t const    i,
     real_type &       re,
     real_type &       im,
     string_view const where ) const
@@ -2452,11 +2389,11 @@ namespace GC_namespace
       case GC_type::INTEGER: value = iv->second._i(); break;
       case GC_type::LONG: value = static_cast<int_type>( iv->second._l() ); break;
       case GC_type::REAL:
-        if ( !isInteger( iv->second._r() ) ) return false;
+        if ( !GC_details::real_fits_integral<int_type>( iv->second._r() ) ) return false;
         value = static_cast<int_type>( iv->second._r() );
         break;
       case GC_type::COMPLEX:
-        if ( !( isInteger( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
+        if ( !( GC_details::real_fits_integral<int_type>( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
         value = static_cast<int_type>( iv->second._c().real() );
         break;
       case GC_type::NOTYPE:
@@ -2490,19 +2427,19 @@ namespace GC_namespace
     {
       case GC_type::BOOL: value = iv->second._b() ? 1 : 0; break;
       case GC_type::INTEGER:
-        if ( iv->second._i() < 0 ) return false;
+        if ( !std::in_range<uint_type>( iv->second._i() ) ) return false;
         value = static_cast<uint_type>( iv->second._i() );
         break;
       case GC_type::LONG:
-        if ( iv->second._l() < 0 ) return false;
+        if ( !std::in_range<uint_type>( iv->second._l() ) ) return false;
         value = static_cast<uint_type>( iv->second._l() );
         break;
       case GC_type::REAL:
-        if ( !isUnsigned( iv->second._r() ) ) return false;
+        if ( !GC_details::real_fits_integral<uint_type>( iv->second._r() ) ) return false;
         value = static_cast<uint_type>( iv->second._r() );
         break;
       case GC_type::COMPLEX:
-        if ( !( isUnsigned( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
+        if ( !( GC_details::real_fits_integral<uint_type>( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
         value = static_cast<uint_type>( iv->second._c().real() );
         break;
       case GC_type::NOTYPE:
@@ -2538,11 +2475,11 @@ namespace GC_namespace
       case GC_type::INTEGER: value = static_cast<long_type>( iv->second._i() ); break;
       case GC_type::LONG: value = iv->second._l(); break;
       case GC_type::REAL:
-        if ( !isInteger( iv->second._r() ) ) return false;
+        if ( !GC_details::real_fits_integral<long_type>( iv->second._r() ) ) return false;
         value = static_cast<long_type>( iv->second._r() );
         break;
       case GC_type::COMPLEX:
-        if ( !( isInteger( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
+        if ( !( GC_details::real_fits_integral<long_type>( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
         value = static_cast<long_type>( iv->second._c().real() );
         break;
       case GC_type::NOTYPE:
@@ -2576,19 +2513,19 @@ namespace GC_namespace
     {
       case GC_type::BOOL: value = iv->second._b() ? 1 : 0; break;
       case GC_type::INTEGER:
-        if ( iv->second._i() < 0 ) return false;
+        if ( !std::in_range<ulong_type>( iv->second._i() ) ) return false;
         value = static_cast<ulong_type>( iv->second._i() );
         break;
       case GC_type::LONG:
-        if ( iv->second._l() < 0 ) return false;
+        if ( !std::in_range<ulong_type>( iv->second._l() ) ) return false;
         value = static_cast<ulong_type>( iv->second._l() );
         break;
       case GC_type::REAL:
-        if ( !isUnsigned( iv->second._r() ) ) return false;
+        if ( !GC_details::real_fits_integral<ulong_type>( iv->second._r() ) ) return false;
         value = static_cast<ulong_type>( iv->second._r() );
         break;
       case GC_type::COMPLEX:
-        if ( !( isUnsigned( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
+        if ( !( GC_details::real_fits_integral<ulong_type>( iv->second._c().real() ) && isZero0( iv->second._c().imag() ) ) ) return false;
         value = static_cast<ulong_type>( iv->second._c().real() );
         break;
       case GC_type::NOTYPE:
@@ -2695,7 +2632,7 @@ namespace GC_namespace
   }
 
   // --------------------------------------------------------------
-  bool_type GenericContainer::get_bool_at( unsigned const i )
+  bool_type GenericContainer::get_bool_at( std::size_t const i )
   {
     if ( get_type() == GC_type::NOTYPE ) set_vec_bool();
     if ( get_type() == GC_type::VEC_BOOL )
@@ -2708,14 +2645,14 @@ namespace GC_namespace
     return _v()[i].set_bool( false );
   }
 
-  bool_type GenericContainer::get_bool_at( unsigned const i, string_view const where ) const
+  bool_type GenericContainer::get_bool_at( std::size_t const i, string_view const where ) const
   {
     ck( where, GC_type::VEC_BOOL );
     GC_ASSERT( i < _v_b().size(), where << " get_bool_at( " << i << " ) const, out of range" )
     return _v_b()[i];
   }
 
-  int_type & GenericContainer::get_int_at( unsigned const i )
+  int_type & GenericContainer::get_int_at( std::size_t const i )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_vec_int();
@@ -2736,14 +2673,14 @@ namespace GC_namespace
     return _v()[i].get_int();
   }
 
-  int_type const & GenericContainer::get_int_at( unsigned const i, string_view const where ) const
+  int_type const & GenericContainer::get_int_at( std::size_t const i, string_view const where ) const
   {
     ck( where, GC_type::VEC_INTEGER );
     GC_ASSERT( i < _v_i().size(), where << " get_int_at( " << i << " ) const, out of range" )
     return _v_i()[i];
   }
 
-  int_type & GenericContainer::get_int_at( unsigned const i, unsigned const j )
+  int_type & GenericContainer::get_int_at( std::size_t const i, std::size_t const j )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_mat_int( i + 1, j + 1 );
@@ -2756,7 +2693,7 @@ namespace GC_namespace
     return _m_i()( i, j );
   }
 
-  int_type const & GenericContainer::get_int_at( unsigned const i, unsigned const j, string_view const where ) const
+  int_type const & GenericContainer::get_int_at( std::size_t const i, std::size_t const j, string_view const where ) const
   {
     ck( where, GC_type::MAT_INTEGER );
     GC_ASSERT(
@@ -2765,7 +2702,7 @@ namespace GC_namespace
     return _m_i()( i, j );
   }
 
-  long_type & GenericContainer::get_long_at( unsigned const i )
+  long_type & GenericContainer::get_long_at( std::size_t const i )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_vec_long();
@@ -2783,14 +2720,14 @@ namespace GC_namespace
     return _v()[i].set_long( 0 );
   }
 
-  long_type const & GenericContainer::get_long_at( unsigned const i, string_view const where ) const
+  long_type const & GenericContainer::get_long_at( std::size_t const i, string_view const where ) const
   {
     ck( where, GC_type::VEC_LONG );
     GC_ASSERT( i < _v_l().size(), where << " get_long_at( " << i << " ) const, out of range" )
     return _v_l()[i];
   }
 
-  long_type & GenericContainer::get_long_at( unsigned const i, unsigned const j )
+  long_type & GenericContainer::get_long_at( std::size_t const i, std::size_t const j )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_mat_long( i + 1, j + 1 );
@@ -2804,7 +2741,7 @@ namespace GC_namespace
     return _m_l()( i, j );
   }
 
-  long_type const & GenericContainer::get_long_at( unsigned const i, unsigned const j, string_view const where ) const
+  long_type const & GenericContainer::get_long_at( std::size_t const i, std::size_t const j, string_view const where ) const
   {
     ck( where, GC_type::MAT_LONG );
     GC_ASSERT(
@@ -2813,7 +2750,7 @@ namespace GC_namespace
     return _m_l()( i, j );
   }
 
-  real_type & GenericContainer::get_real_at( unsigned const i )
+  real_type & GenericContainer::get_real_at( std::size_t const i )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_vec_real();
@@ -2830,14 +2767,14 @@ namespace GC_namespace
     return _v()[i].set_real( 0 );
   }
 
-  real_type const & GenericContainer::get_real_at( unsigned const i, string_view const where ) const
+  real_type const & GenericContainer::get_real_at( std::size_t const i, string_view const where ) const
   {
     ck( where, GC_type::VEC_REAL );
     GC_ASSERT( i < _v_r().size(), where << " get_real_at( " << i << " ) const, out of range" )
     return _v_r()[i];
   }
 
-  real_type & GenericContainer::get_real_at( unsigned const i, unsigned const j )
+  real_type & GenericContainer::get_real_at( std::size_t const i, std::size_t const j )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_mat_real( i + 1, j + 1 );
@@ -2852,7 +2789,7 @@ namespace GC_namespace
     return _m_r()( i, j );
   }
 
-  real_type const & GenericContainer::get_real_at( unsigned const i, unsigned const j, string_view const where ) const
+  real_type const & GenericContainer::get_real_at( std::size_t const i, std::size_t const j, string_view const where ) const
   {
     ck( where, GC_type::MAT_REAL );
     GC_ASSERT(
@@ -2861,7 +2798,7 @@ namespace GC_namespace
     return _m_r()( i, j );
   }
 
-  complex_type & GenericContainer::get_complex_at( unsigned const i )
+  complex_type & GenericContainer::get_complex_at( std::size_t const i )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_vec_complex();
@@ -2879,14 +2816,14 @@ namespace GC_namespace
     return _v()[i].set_complex( 0, 0 );
   }
 
-  complex_type const & GenericContainer::get_complex_at( unsigned const i, string_view const where ) const
+  complex_type const & GenericContainer::get_complex_at( std::size_t const i, string_view const where ) const
   {
     ck( where, GC_type::VEC_COMPLEX );
     GC_ASSERT( i < _v_c().size(), where << " get_complex_at( " << i << " ) const, out of range" )
     return _v_c()[i];
   }
 
-  complex_type & GenericContainer::get_complex_at( unsigned const i, unsigned const j )
+  complex_type & GenericContainer::get_complex_at( std::size_t const i, std::size_t const j )
   {
     if ( get_type() == GC_type::NOTYPE )
       set_mat_complex( i + 1, j + 1 );
@@ -2901,7 +2838,7 @@ namespace GC_namespace
     return _m_c()( i, j );
   }
 
-  complex_type const & GenericContainer::get_complex_at( unsigned const i, unsigned const j, string_view const where )
+  complex_type const & GenericContainer::get_complex_at( std::size_t const i, std::size_t const j, string_view const where )
     const
   {
     ck( where, GC_type::MAT_COMPLEX );
@@ -2911,7 +2848,7 @@ namespace GC_namespace
     return _m_c()( i, j );
   }
 
-  string_type & GenericContainer::get_string_at( unsigned const i )
+  string_type & GenericContainer::get_string_at( std::size_t const i )
   {
     if ( get_type() == GC_type::NOTYPE ) set_vec_string();
     if ( get_type() == GC_type::VEC_STRING )
@@ -2923,19 +2860,19 @@ namespace GC_namespace
     return ( *this )[i].set_string( "" );
   }
 
-  string const & GenericContainer::get_string_at( unsigned const i, string_view const where ) const
+  string const & GenericContainer::get_string_at( std::size_t const i, string_view const where ) const
   {
     ck( where, GC_type::VEC_STRING );
     GC_ASSERT( i < _v_s().size(), where << " get_string_at( " << i << " ) const, out of range" )
     return _v_s()[i];
   }
 
-  GenericContainer & GenericContainer::get_gc_at( unsigned const i )
+  GenericContainer & GenericContainer::get_gc_at( std::size_t const i )
   {
     return ( *this )[i];
   }
 
-  GenericContainer const & GenericContainer::get_gc_at( unsigned const i, string_view const where ) const
+  GenericContainer const & GenericContainer::get_gc_at( std::size_t const i, string_view const where ) const
   {
     return ( *this )( i, where );
   }
@@ -2993,7 +2930,7 @@ namespace GC_namespace
   //        |_|                                  |__|__|
   */
 
-  GenericContainer & GenericContainer::operator[]( unsigned const i )
+  GenericContainer & GenericContainer::operator[]( std::size_t const i )
   {
     switch ( ck( GC_type::VECTOR ) )
     {
@@ -3004,7 +2941,7 @@ namespace GC_namespace
     return _v()[i];
   }
 
-  GenericContainer const & GenericContainer::operator[]( unsigned const i ) const
+  GenericContainer const & GenericContainer::operator[]( std::size_t const i ) const
   {
     GC_ASSERT(
       GC_type::VECTOR == get_type(),
@@ -3024,14 +2961,14 @@ namespace GC_namespace
   //
   */
 
-  GenericContainer & GenericContainer::operator()( unsigned const i, string_view const where )
+  GenericContainer & GenericContainer::operator()( std::size_t const i, string_view const where )
   {
     ck( where, GC_type::VECTOR );
     GC_ASSERT( i < _v().size(), where << " operator () const, index " << i << " out of range" )
     return _v()[i];
   }
 
-  GenericContainer const & GenericContainer::operator()( unsigned const i, string_view const where ) const
+  GenericContainer const & GenericContainer::operator()( std::size_t const i, string_view const where ) const
   {
     ck( where, GC_type::VECTOR );
     GC_ASSERT( i < _v().size(), where << " operator () const, index " << i << " out of range" )
@@ -3511,7 +3448,7 @@ namespace GC_namespace
         gc.set_vector();
         {
           vector_type const & v{ _v() };
-          vector_type &       vv = gc.set_vector( static_cast<unsigned>( v.size() ) );
+          vector_type &       vv = gc.set_vector( static_cast<std::size_t>( v.size() ) );
           for ( vector_type::size_type i{ 0 }; i < v.size(); ++i ) v[i].to_gc( vv[i] );
         }
         break;
@@ -3568,7 +3505,7 @@ namespace GC_namespace
         this->set_vector();
         {
           vector_type const & v{ gc._v() };
-          vector_type &       vv = this->set_vector( static_cast<unsigned>( v.size() ) );
+          vector_type &       vv = this->set_vector( static_cast<std::size_t>( v.size() ) );
           for ( vector_type::size_type i{ 0 }; i < v.size(); ++i ) vv[i].from_gc( v[i] );
         }
         break;
@@ -3614,16 +3551,16 @@ namespace GC_namespace
     }
   }
 
+  void gc_do_error( std::string const & msg )
+  {
+    throw std::runtime_error( msg );
+  }
+
   void GenericContainer::exception( string_view const where )
   {
     throw std::runtime_error( string_type( where ) );
   }
 
-  // instantate classes
-  template class mat_type<int_type>;
-  template class mat_type<long_type>;
-  template class mat_type<real_type>;
-  template class mat_type<complex_type>;
 
 }  // namespace GC_namespace
 

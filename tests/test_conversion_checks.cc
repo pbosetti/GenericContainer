@@ -34,8 +34,6 @@ TEST_CASE( "boundary values inside the target range convert", "[convert]" )
 
 TEST_CASE( "LONG beyond int32 range is rejected by get_as_int", "[convert][newbehavior]" )
 {
-  SKIP( "unchecked static_cast until Phase 3 checked_narrow" );
-
   GenericContainer gc;
   gc.set_long( 1LL << 40 );
   CHECK_THROWS_AS( gc.get_as_int(), std::runtime_error );
@@ -50,8 +48,6 @@ TEST_CASE( "LONG beyond int32 range is rejected by get_as_int", "[convert][newbe
 
 TEST_CASE( "huge integral-valued doubles are rejected, not UB-cast", "[convert][newbehavior]" )
 {
-  SKIP( "isInteger() alone passes 1e300 to an UB cast until Phase 3" );
-
   GenericContainer gc;
   gc.set_real( 1e300 );
   CHECK_THROWS_AS( gc.get_as_int(), std::runtime_error );
@@ -71,8 +67,6 @@ TEST_CASE( "huge integral-valued doubles are rejected, not UB-cast", "[convert][
 
 TEST_CASE( "NaN and infinity are rejected for integral conversion", "[convert][newbehavior]" )
 {
-  SKIP( "NaN/Inf handling guaranteed from Phase 3" );
-
   GenericContainer gc;
   gc.set_real( std::numeric_limits<real_type>::quiet_NaN() );
   CHECK_THROWS_AS( gc.get_as_int(), std::runtime_error );

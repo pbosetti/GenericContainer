@@ -138,8 +138,8 @@ namespace GC_namespace
         toml::array          data;
         for ( auto v : M ) data.push_back( v );
         toml::table mat_int;
-        mat_int.insert( "$nrows", gc.num_rows() );
-        mat_int.insert( "$ncols", gc.num_cols() );
+        mat_int.insert( "$nrows", static_cast<int64_t>( gc.num_rows() ) );
+        mat_int.insert( "$ncols", static_cast<int64_t>( gc.num_cols() ) );
         mat_int.insert( "$data", data );
         DEF_UNIQUE( toml::table );
         node->as_table()->insert( "$mat_integer", std::move( mat_int ) );
@@ -151,8 +151,8 @@ namespace GC_namespace
         toml::array           data;
         for ( auto v : M ) data.push_back( v );
         toml::table mat_long;
-        mat_long.insert( "$nrows", gc.num_rows() );
-        mat_long.insert( "$ncols", gc.num_cols() );
+        mat_long.insert( "$nrows", static_cast<int64_t>( gc.num_rows() ) );
+        mat_long.insert( "$ncols", static_cast<int64_t>( gc.num_cols() ) );
         mat_long.insert( "$data", data );
         DEF_UNIQUE( toml::table );
         node->as_table()->insert( "$mat_long", std::move( mat_long ) );
@@ -164,8 +164,8 @@ namespace GC_namespace
         toml::array           data;
         for ( auto v : M ) data.push_back( v );
         toml::table mat_real;
-        mat_real.insert( "$nrows", gc.num_rows() );
-        mat_real.insert( "$ncols", gc.num_cols() );
+        mat_real.insert( "$nrows", static_cast<int64_t>( gc.num_rows() ) );
+        mat_real.insert( "$ncols", static_cast<int64_t>( gc.num_cols() ) );
         mat_real.insert( "$data", data );
         DEF_UNIQUE( toml::table );
         node->as_table()->insert( "$mat_long", std::move( mat_real ) );
@@ -179,8 +179,8 @@ namespace GC_namespace
         for ( auto v : M ) data_real.push_back( v.real() );
         for ( auto v : M ) data_imag.push_back( v.imag() );
         toml::table mat_complex;
-        mat_complex.insert( "$nrows", gc.num_rows() );
-        mat_complex.insert( "$ncols", gc.num_cols() );
+        mat_complex.insert( "$nrows", static_cast<int64_t>( gc.num_rows() ) );
+        mat_complex.insert( "$ncols", static_cast<int64_t>( gc.num_cols() ) );
         mat_complex.insert( "$data_real", data_real );
         mat_complex.insert( "$data_imag", data_imag );
         DEF_UNIQUE( toml::table );

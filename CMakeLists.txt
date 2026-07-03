@@ -50,6 +50,25 @@ include( "${HOME}/CMakeLists-utilities.txt" )
 # only by accident of ordering).
 string( REPLACE "-std=c++17" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}" )
 
+# Eigen dense matrices back the mat_* types, so Eigen is a PUBLIC dependency of
+# the library. Fetched headers-only (Eigen's own CMakeLists would configure its
+# test/doc machinery), same hand-made INTERFACE-target pattern used for
+# nlohmann_json below; SYSTEM keeps Eigen's internals out of our warning set.
+FetchContent_Declare(
+  eigen3
+  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+)
+FetchContent_GetProperties( eigen3 )
+if( NOT eigen3_POPULATED )
+  FetchContent_Populate( eigen3 )
+endif()
+add_library( Eigen3_Eigen INTERFACE )
+add_library( Eigen3::Eigen ALIAS Eigen3_Eigen )
+target_include_directories(
+  Eigen3_Eigen SYSTEM INTERFACE
+  "$<BUILD_INTERFACE:${eigen3_SOURCE_DIR}>"
+)
+
 # Evaluating the suffix to append to target built by this CMake file
 utils_artifacts_suffix(ARTIFACTS_STATIC_SUFFIX TRUE)
 if( UTILS_BUILD_SHARED )
@@ -198,6 +217,7 @@ target_include_directories(
 # this directory anyway, so require C++20 via a PUBLIC usage requirement to propagate
 # it to anything linking this library.
 target_compile_features( "${UTILS_NAMESPACE}_${PROJECT_NAME}_Static" PUBLIC cxx_std_20 )
+target_link_libraries( "${UTILS_NAMESPACE}_${PROJECT_NAME}_Static" PUBLIC Eigen3::Eigen )
 if ( UTILS_BUILD_SHARED )
   utils_setup_target(
     Lua
@@ -220,7 +240,7 @@ if ( UTILS_BUILD_SHARED )
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
   )
   target_compile_features( "${UTILS_NAMESPACE}_${PROJECT_NAME}" PUBLIC cxx_std_20 )
-  target_link_libraries( "${UTILS_NAMESPACE}_${PROJECT_NAME}" "${UTILS_NAMESPACE}_Lua" )
+  target_link_libraries( "${UTILS_NAMESPACE}_${PROJECT_NAME}" PUBLIC Eigen3::Eigen "${UTILS_NAMESPACE}_Lua" )
 endif()
 
 if ( UNIX )

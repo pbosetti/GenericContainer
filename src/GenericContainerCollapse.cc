@@ -126,56 +126,56 @@ namespace GC_namespace
           }
           case GC_type::VEC_INTEGER:
           {
-            auto         NR{ static_cast<unsigned>( last_nelem ) };
-            auto         NC{ static_cast<unsigned>( v.size() ) };
+            auto         NR{ static_cast<std::size_t>( last_nelem ) };
+            auto         NC{ static_cast<std::size_t>( v.size() ) };
             mat_int_type M( NR, NC );
-            for ( unsigned j{ 0 }; j < NC; ++j )
+            for ( std::size_t j{ 0 }; j < NC; ++j )
             {
               vec_int_type C;
               v[j].copyto_vec_int( C );
-              for ( unsigned i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
+              for ( std::size_t i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
             }
             *this = M;
             break;
           }
           case GC_type::VEC_LONG:
           {
-            auto          NR{ static_cast<unsigned>( last_nelem ) };
-            auto          NC{ static_cast<unsigned>( v.size() ) };
+            auto          NR{ static_cast<std::size_t>( last_nelem ) };
+            auto          NC{ static_cast<std::size_t>( v.size() ) };
             mat_long_type M( NR, NC );
-            for ( unsigned j{ 0 }; j < NC; ++j )
+            for ( std::size_t j{ 0 }; j < NC; ++j )
             {
               vec_long_type C;
               v[j].copyto_vec_long( C );
-              for ( unsigned i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
+              for ( std::size_t i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
             }
             *this = M;
             break;
           }
           case GC_type::VEC_REAL:
           {
-            auto          NR{ static_cast<unsigned>( last_nelem ) };
-            auto          NC{ static_cast<unsigned>( v.size() ) };
+            auto          NR{ static_cast<std::size_t>( last_nelem ) };
+            auto          NC{ static_cast<std::size_t>( v.size() ) };
             mat_real_type M( NR, NC );
-            for ( unsigned j{ 0 }; j < NC; ++j )
+            for ( std::size_t j{ 0 }; j < NC; ++j )
             {
               vec_real_type C;
               v[j].copyto_vec_real( C );
-              for ( unsigned i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
+              for ( std::size_t i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
             }
             *this = M;
             break;
           }
           case GC_type::VEC_COMPLEX:
           {
-            auto             NR{ static_cast<unsigned>( last_nelem ) };
-            auto             NC{ static_cast<unsigned>( v.size() ) };
+            auto             NR{ static_cast<std::size_t>( last_nelem ) };
+            auto             NC{ static_cast<std::size_t>( v.size() ) };
             mat_complex_type M( NR, NC );
-            for ( unsigned j{ 0 }; j < NC; ++j )
+            for ( std::size_t j{ 0 }; j < NC; ++j )
             {
               vec_complex_type C;
               v[j].copyto_vec_complex( C );
-              for ( unsigned i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
+              for ( std::size_t i{ 0 }; i < NR; ++i ) M( i, j ) = C[i];
             }
             *this = M;
             break;

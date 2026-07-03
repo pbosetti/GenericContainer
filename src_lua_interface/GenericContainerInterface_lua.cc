@@ -225,7 +225,7 @@ namespace GC_namespace
       {
         vec_bool_type const & vb = gc.get_vec_bool();
         lua_createtable( L, int( vb.size() ), 0 );
-        for ( unsigned i = 0; i < vb.size(); ++i )
+        for ( std::size_t i = 0; i < vb.size(); ++i )
         {
           lua_pushboolean( L, vb[i] ? 1 : 0 );
           lua_rawseti( L, -2, int( i + 1 ) );
@@ -237,7 +237,7 @@ namespace GC_namespace
       {
         vec_int_type const & vi = gc.get_vec_int();
         lua_createtable( L, int( vi.size() ), 0 );
-        for ( unsigned i = 0; i < vi.size(); ++i )
+        for ( std::size_t i = 0; i < vi.size(); ++i )
         {
           lua_pushnumber( L, lua_Number( vi[i] ) );
           lua_rawseti( L, -2, int( i + 1 ) );
@@ -248,7 +248,7 @@ namespace GC_namespace
       {
         vec_long_type const & vi = gc.get_vec_long();
         lua_createtable( L, int( vi.size() ), 0 );
-        for ( unsigned i = 0; i < vi.size(); ++i )
+        for ( std::size_t i = 0; i < vi.size(); ++i )
         {
           lua_pushnumber( L, lua_Number( vi[i] ) );
           lua_rawseti( L, -2, int( i + 1 ) );
@@ -259,7 +259,7 @@ namespace GC_namespace
       {
         vec_real_type const & vr = gc.get_vec_real();
         lua_createtable( L, int( vr.size() ), 0 );
-        for ( unsigned i = 0; i < vr.size(); ++i )
+        for ( std::size_t i = 0; i < vr.size(); ++i )
         {
           lua_pushnumber( L, vr[i] );
           lua_rawseti( L, -2, int( i + 1 ) );
@@ -270,7 +270,7 @@ namespace GC_namespace
       {
         vec_string_type const & vs = gc.get_vec_string();
         lua_createtable( L, int( vs.size() ), 0 );
-        for ( unsigned i = 0; i < vs.size(); ++i )
+        for ( std::size_t i = 0; i < vs.size(); ++i )
         {
           lua_pushstring( L, vs[i].c_str() );
           lua_rawseti( L, -2, int( i + 1 ) );
@@ -281,7 +281,7 @@ namespace GC_namespace
       {
         vector_type const & v = gc.get_vector();
         lua_createtable( L, int( v.size() ), 0 );
-        for ( unsigned i = 0; i < v.size(); ++i )
+        for ( std::size_t i = 0; i < v.size(); ++i )
         {
           GC_to_lua( L, v[i] );
           lua_rawseti( L, -2, int( i + 1 ) );

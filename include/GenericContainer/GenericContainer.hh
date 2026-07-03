@@ -46,18 +46,22 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <cmath>
+#include <limits>
 #include <stdexcept>
+
+#include <Eigen/Core>
 
 #include "GenericContainerConfig.hh"
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
 #ifndef GC_DO_ERROR
-#define GC_DO_ERROR( MSG )                           \
-  {                                                  \
-    ostringstream ost;                               \
-    ost << "in GenericContainer: " << MSG << '\n';   \
-    GenericContainer::exception( ost.str().data() ); \
+#define GC_DO_ERROR( MSG )                             \
+  {                                                    \
+    std::ostringstream ost;                            \
+    ost << "in GenericContainer: " << MSG << '\n';     \
+    ::GC_namespace::gc_do_error( ost.str() );          \
   }
 #endif
 
@@ -87,6 +91,10 @@
 //!
 namespace GC_namespace
 {
+
+  //! Throw a std::runtime_error carrying `msg`; single funnel for all
+  //! GC_DO_ERROR/GC_ASSERT failures (defined in GenericContainer.cc).
+  [[noreturn]] void gc_do_error( std::string const & msg );
 
   using std::cin;
   using std::complex;
@@ -220,307 +228,214 @@ namespace GC_namespace
     };
     template <typename T> inline constexpr bool is_box_v = is_box<T>::value;
 
+    //! True when `x` is (numerically) zero, treating subnormals as zero.
+    [[nodiscard]] inline bool is_zero0( real_type const x )
+    {
+      int const c{ std::fpclassify( x ) };
+      return FP_ZERO == c || FP_SUBNORMAL == c;
+    }
+
+    //! True when `x` holds an integral value (NaN and infinities fail).
+    [[nodiscard]] inline bool is_integral_value( real_type const x )
+    {
+      return is_zero0( x - std::round( x ) );
+    }
+
+    //!
+    //! True when the real `x` holds an integral value exactly representable
+    //! in the integer type `To`. The upper bound is computed as an exact
+    //! power of two and compared strictly, so boundary values like 2^31 for
+    //! int32 are correctly rejected; NaN and infinities fail the integral
+    //! test.
+    //!
+    template <typename To> [[nodiscard]] bool real_fits_integral( real_type const x )
+    {
+      static_assert( std::is_integral_v<To> );
+      constexpr real_type hi = static_cast<real_type>( To( 1 ) << ( std::numeric_limits<To>::digits - 1 ) ) * 2;
+      constexpr real_type lo = std::is_signed_v<To> ? -hi : real_type( 0 );
+      return is_integral_value( x ) && x >= lo && x < hi;
+    }
+
   }  // namespace GC_details
 
 #endif
 
   // ---------------------------------------------------------------------------
   //!
-  //! \brief Generic matrix storage type.
+  //! \brief Dense dynamic matrix type backed by Eigen.
   //!
-  //! This template class defines a matrix type that extends vector<TYPE>
-  //! to store and manipulate a 2D matrix of elements of type `TYPE`.
-  //! The matrix is stored internally as a 1D vector in row-major order.
+  //! `mat_type<TYPE>` IS an `Eigen::Matrix<TYPE, Dynamic, Dynamic>` (public
+  //! inheritance is Eigen's sanctioned extension mechanism): a stored matrix
+  //! participates directly in Eigen expressions and can be passed to any API
+  //! taking an `Eigen::MatrixBase`. Storage is column-major (Eigen's default,
+  //! and the layout of the historical hand-rolled matrix), which the binary
+  //! serialization format relies on.
   //!
-  //! @tparam TYPE The type of elements stored in the matrix.
+  //! On top of Eigen this type preserves the historical GenericContainer
+  //! matrix semantics:
+  //! - the sized constructor and `resize(nr,nc)` zero-fill (Eigen leaves
+  //!   values uninitialized);
+  //! - `num_rows()/num_cols()` std::size_t accessors;
+  //! - linear `operator[]` indexing in storage order;
+  //! - `get_row/get_column` copy-out helpers.
   //!
-  template <typename TYPE> class mat_type : public vector<TYPE>
+  //! @tparam TYPE The scalar type of the matrix elements.
+  //!
+  template <typename TYPE> class mat_type : public Eigen::Matrix<TYPE, Eigen::Dynamic, Eigen::Dynamic>
   {
-    unsigned                                 m_num_rows{ 0 };  //!< Number of rows in the matrix.
-    unsigned                                 m_num_cols{ 0 };  //!< Number of columns in the matrix.
-    typedef typename vector<TYPE>::size_type size_type;
-
   public:
-    //! Default constructor that creates an empty matrix.
-    mat_type() = default;
+    using Base       = Eigen::Matrix<TYPE, Eigen::Dynamic, Eigen::Dynamic>;
+    using value_type = TYPE;
 
-    //!
-    //! Constructs a matrix with given number of rows and columns.
-    //!
-    //! \param nr Number of rows.
-    //! \param nc Number of columns.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 4);  // Creates a 3x4 matrix
-    //! \endcode
-    //!
-    mat_type( unsigned nr, unsigned nc ) : m_num_rows( nr ), m_num_cols( nc )
+    //! Empty 0 x 0 matrix.
+    mat_type() : Base() {}
+
+    //! `nr` x `nc` matrix with all elements zero-initialized.
+    mat_type( std::size_t const nr, std::size_t const nc )
+      : Base( Base::Zero( static_cast<Eigen::Index>( nr ), static_cast<Eigen::Index>( nc ) ) )
     {
-      vector<TYPE>::resize( size_type( nr * nc ) );
     }
 
-    //!
-    //! Resizes the matrix to the specified dimensions.
-    //!
-    //! \param nr New number of rows.
-    //! \param nc New number of columns.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(2, 3);
-    //! matrix.resize(4, 5);  // Resizes the matrix to 4x5
-    //! \endcode
-    //!
-    void resize( unsigned const nr, unsigned const nc )
+    //! Construct from any Eigen expression (evaluates it).
+    template <typename Derived> mat_type( Eigen::MatrixBase<Derived> const & other ) : Base( other ) {}
+
+    //! Assign from any Eigen expression.
+    template <typename Derived> mat_type & operator=( Eigen::MatrixBase<Derived> const & other )
     {
-      m_num_rows = nr;
-      m_num_cols = nc;
-      vector<TYPE>::resize( size_type( nr * nc ) );
+      Base::operator=( other );
+      return *this;
     }
+
+    //! Resize to `nr` x `nc`, zero-filling all elements (destructive, as before).
+    void resize( std::size_t const nr, std::size_t const nc )
+    {
+      this->setZero( static_cast<Eigen::Index>( nr ), static_cast<Eigen::Index>( nc ) );
+    }
+
+    //! Reset to an empty 0 x 0 matrix.
+    void clear() { this->resize( 0, 0 ); }
+
+    //! True when the matrix holds no elements.
+    [[nodiscard]] bool empty() const noexcept { return this->size() == 0; }
 
     template <typename T1, typename T2> void resize( T1 const nr, T2 const nc )
     {
       static_assert( std::is_integral_v<T1>, "resize() accepts only integral types!" );
       static_assert( std::is_integral_v<T2>, "resize() accepts only integral types!" );
-      resize( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
+      resize( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
     }
 
-    //!
-    //! Copy the specified column of the matrix to a vector.
-    //!
-    //! \param nc The index of the column to be copied (0-based).
-    //! \param C The vector that will be filled with the column elements.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! vector<int> column;
-    //! matrix.get_column(1, column);  // Copies the second column into `column`
-    //! \endcode
-    //!
-    void get_column( unsigned nc, vector<TYPE> & C ) const;
+    //! Number of rows.
+    [[nodiscard]] std::size_t num_rows() const { return static_cast<std::size_t>( this->rows() ); }
+    //! Number of columns.
+    [[nodiscard]] std::size_t num_cols() const { return static_cast<std::size_t>( this->cols() ); }
+    //! \deprecated use `num_rows`
+    [[nodiscard]] std::size_t numRows() const { return num_rows(); }
+    //! \deprecated use `num_cols`
+    [[nodiscard]] std::size_t numCols() const { return num_cols(); }
+
+    //! Linear element access in storage (column-major) order.
+    TYPE const & operator[]( std::size_t const i ) const { return this->data()[i]; }
+    //! Linear element access in storage (column-major) order.
+    TYPE & operator[]( std::size_t const i ) { return this->data()[i]; }
+
+    //! STL iteration over the elements in storage (column-major) order,
+    //! matching the historical vector-backed layout (Eigen itself provides
+    //! begin/end only for 1-D expressions).
+    TYPE *       begin() noexcept { return this->data(); }
+    TYPE *       end() noexcept { return this->data() + this->size(); }
+    TYPE const * begin() const noexcept { return this->data(); }
+    TYPE const * end() const noexcept { return this->data() + this->size(); }
+
+    //! Bounds-checked element access (throws on out-of-range indices).
+    TYPE const & operator()( std::size_t const i, std::size_t const j ) const
+    {
+      GC_ASSERT(
+        i < num_rows() && j < num_cols(),
+        "mat_type::operator() (" << i << ", " << j << ") out of range [0," << num_rows() << ") x [0," << num_cols()
+                                 << ")" )
+      return Base::operator()( static_cast<Eigen::Index>( i ), static_cast<Eigen::Index>( j ) );
+    }
+
+    //! Bounds-checked element access (throws on out-of-range indices).
+    TYPE & operator()( std::size_t const i, std::size_t const j )
+    {
+      GC_ASSERT(
+        i < num_rows() && j < num_cols(),
+        "mat_type::operator() (" << i << ", " << j << ") out of range [0," << num_rows() << ") x [0," << num_cols()
+                                 << ")" )
+      return Base::operator()( static_cast<Eigen::Index>( i ), static_cast<Eigen::Index>( j ) );
+    }
+
+    //! Copy column `nc` into vector `C`.
+    void get_column( std::size_t const nc, vector<TYPE> & C ) const
+    {
+      GC_ASSERT(
+        nc < num_cols(), "mat_type::get_column(" << nc << ",C) column index out of range max = " << num_cols() - 1 );
+      C.assign( this->col( static_cast<Eigen::Index>( nc ) ).begin(), this->col( static_cast<Eigen::Index>( nc ) ).end() );
+    }
 
     template <typename T> void get_column( T const nc, vector<TYPE> & C ) const
     {
-      static_assert( std::is_integral_v<T>, "get_column() accepts only integral types as first argument!" );
-      get_column( static_cast<unsigned>( nc ), C );
+      static_assert( std::is_integral_v<T>, "get_column() accepts only integral types!" );
+      get_column( static_cast<std::size_t>( nc ), C );
     }
 
-    //!
-    //! \deprecated
-    //!
-    void getColumn( unsigned nc, vector<TYPE> & C ) const { this->get_column( nc, C ); }
+    //! \deprecated use `get_column`
+    void getColumn( std::size_t const nc, vector<TYPE> & C ) const { this->get_column( nc, C ); }
 
-    //!
-    //! Copy the specified row of the matrix to a vector.
-    //!
-    //! \param nr The index of the row to be copied (0-based).
-    //! \param R The vector that will be filled with the row elements.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! vector<int> row;
-    //! matrix.get_row(0, row);  // Copies the first row into `row`
-    //! \endcode
-    //!
-    void get_row( unsigned nr, vector<TYPE> & R ) const;
+    //! Copy row `nr` into vector `R`.
+    void get_row( std::size_t const nr, vector<TYPE> & R ) const
+    {
+      GC_ASSERT( nr < num_rows(), "mat_type::get_row(" << nr << ",R) row index out of range max = " << num_rows() - 1 );
+      R.resize( static_cast<std::size_t>( this->cols() ) );
+      for ( std::size_t j{ 0 }; j < num_cols(); ++j ) R[j] = Base::operator()( static_cast<Eigen::Index>( nr ), static_cast<Eigen::Index>( j ) );
+    }
 
     template <typename T> void get_row( T const nr, vector<TYPE> & R ) const
     {
-      static_assert( std::is_integral_v<T>, "get_row() accepts only integral types as first argument!" );
-      get_row( static_cast<unsigned>( nr ), R );
+      static_assert( std::is_integral_v<T>, "get_row() accepts only integral types!" );
+      get_row( static_cast<std::size_t>( nr ), R );
     }
 
-    //!
-    //! \deprecated
-    //!
-    void getRow( unsigned nr, vector<TYPE> & R ) const { this->get_row( nr, R ); }
+    //! \deprecated use `get_row`
+    void getRow( std::size_t const nr, vector<TYPE> & R ) const { this->get_row( nr, R ); }
 
-    //!
-    //! Copies the specified column of the matrix to the given memory.
-    //!
-    //! \param nc The index of the column to be copied (0-based).
-    //! \param C Pointer to memory where the column elements will be stored.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! int column[3];
-    //! matrix.get_column(1, column);  // Copies the second column into `column`
-    //! \endcode
-    //!
-    void get_column( unsigned nc, TYPE * C ) const;
-
-    template <typename T> void get_column( T const nc, TYPE * C ) const
+    //! Copy column `nc` into buffer `C` (must hold `num_rows()` elements).
+    void get_column( std::size_t const nc, TYPE * C ) const
     {
-      static_assert( std::is_integral_v<T>, "get_column() accepts only integral types as first argument!" );
-      get_column( static_cast<unsigned>( nc ), C );
+      GC_ASSERT(
+        nc < num_cols(), "mat_type::get_column(" << nc << ",C) column index out of range max = " << num_cols() - 1 );
+      for ( std::size_t i{ 0 }; i < num_rows(); ++i ) C[i] = Base::operator()( static_cast<Eigen::Index>( i ), static_cast<Eigen::Index>( nc ) );
     }
 
-    //!
-    //! \deprecated
-    //!
-    void getColumn( unsigned nc, TYPE * C ) const { get_column( nc, C ); }
+    //! \deprecated use `get_column`
+    void getColumn( std::size_t const nc, TYPE * C ) const { get_column( nc, C ); }
 
-    //!
-    //! Copies the specified row of the matrix to the given memory.
-    //!
-    //! \param nr The index of the row to be copied (0-based).
-    //! \param R Pointer to memory where the row elements will be stored.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! int row[3];
-    //! matrix.get_row(0, row);  // Copies the first row into `row`
-    //! \endcode
-    //!
-    void get_row( unsigned nr, TYPE * R ) const;
-
-    template <typename T> void get_row( T const nr, TYPE * R ) const
+    //! Copy row `nr` into buffer `R` (must hold `num_cols()` elements).
+    void get_row( std::size_t const nr, TYPE * R ) const
     {
-      static_assert( std::is_integral_v<T>, "get_row() accepts only integral types as first argument!" );
-      get_row( static_cast<unsigned>( nr ), R );
+      GC_ASSERT( nr < num_rows(), "mat_type::get_row(" << nr << ",R) row index out of range max = " << num_rows() - 1 );
+      for ( std::size_t j{ 0 }; j < num_cols(); ++j ) R[j] = Base::operator()( static_cast<Eigen::Index>( nr ), static_cast<Eigen::Index>( j ) );
     }
 
-    //!
-    //! \deprecated
-    //!
-    void getRow( unsigned nr, TYPE * R ) const { this->get_row( nr, R ); }
+    //! \deprecated use `get_row`
+    void getRow( std::size_t const nr, TYPE * R ) const { this->get_row( nr, R ); }
 
-    //!
-    //! Returns the number of rows in the matrix.
-    //!
-    //! \return The number of rows.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! unsigned rows = matrix.num_rows();  // Returns 3
-    //! \endcode
-    //!
-    [[nodiscard]] unsigned num_rows() const { return m_num_rows; }
-
-    //!
-    //! \deprecated
-    //!
-    [[nodiscard]] unsigned numRows() const { return m_num_rows; }
-
-    //!
-    //! Returns the number of columns in the matrix.
-    //!
-    //! \return The number of columns.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! unsigned cols = matrix.num_cols();  // Returns 3
-    //! \endcode
-    //!
-    [[nodiscard]] unsigned num_cols() const { return m_num_cols; }
-
-    //!
-    //! \deprecated
-    //!
-    [[nodiscard]] unsigned numCols() const { return m_num_cols; }
-
-    //!
-    //! Provides constant access to the element at position (i, j).
-    //!
-    //! \param i Row index (0-based).
-    //! \param j Column index (0-based).
-    //! \return A constant reference to the element at (i, j).
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! const int &value = matrix(1, 1);  // Accesses element at (1,1)
-    //! \endcode
-    //!
-    TYPE const & operator()( unsigned i, unsigned j ) const;
-
-    //!
-    //! Provides mutable access to the element at position (i, j).
-    //!
-    //! \param i Row index (0-based).
-    //! \param j Column index (0-based).
-    //! \return A reference to the element at (i, j).
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! matrix(1, 1) = 42;  // Sets the element at (1,1) to 42
-    //! \endcode
-    //!
-    TYPE & operator()( unsigned i, unsigned j );
-
-    //!
-    //! Prints matrix information (dimensions and content) to the given output stream.
-    //!
-    //! \param stream The output stream where matrix information will be printed.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! matrix.info(cout);  // Prints matrix info to standard output
-    //! \endcode
-    //!
-    void info( ostream_type & stream ) const;
-
-    //!
-    //! Returns a string containing matrix information (dimensions and content).
-    //!
-    //! \return A string with matrix information.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! string info = matrix.info();  // Returns matrix info as string
-    //! \endcode
-    //!
-    string_type info() const
+    //! Print a short description of the matrix to `stream`.
+    void info( ostream_type & stream ) const
     {
-      ostringstream ostr;
-      this->info( ostr );
-      return ostr.str();
+      stream << "Matrix of floating point number of size " << num_rows() << " x " << num_cols() << '\n';
     }
 
-    //!
-    //! Returns a pointer to the underlying data block of the matrix.
-    //!
-    //! \return A pointer to the first element of the matrix data array.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! int *dataPtr = matrix.data();  // Pointer to matrix data
-    //! \endcode
-    //!
-    TYPE * data() { return vector<TYPE>::empty() ? nullptr : vector<TYPE>::data(); }
-
-    //!
-    //! Returns a constant pointer to the underlying data block of the matrix.
-    //!
-    //! \return A constant pointer to the first element of the matrix data array.
-    //!
-    //! ### Example
-    //! \code
-    //! mat_type<int> matrix(3, 3);
-    //! const int *dataPtr = matrix.data();  // Constant pointer to matrix data
-    //! \endcode
-    //!
-    TYPE const * data() const { return vector<TYPE>::empty() ? nullptr : vector<TYPE>::data(); }
+    //! Return a short description of the matrix as a string.
+    [[nodiscard]] string_type info() const
+    {
+      ostringstream sstr;
+      this->info( sstr );
+      return sstr.str();
+    }
   };
-
-// ---------------------------------------------------------------------------
-#ifndef GENERIC_CONTAINER_ON_WINDOWS
-  extern template class mat_type<int_type>;
-  extern template class mat_type<long_type>;
-  extern template class mat_type<real_type>;
-  extern template class mat_type<complex_type>;
-#endif
 
   using mat_int_type     = mat_type<int_type>;
   using mat_long_type    = mat_type<long_type>;
@@ -672,18 +587,18 @@ namespace GC_namespace
     using pointer_type     = GC_namespace::pointer_type;      //!< Alias for pointer type
     using bool_type        = GC_namespace::bool_type;         //!< Alias for boolean type
     using int_type         = GC_namespace::int_type;          //!< Alias for integer type
-    using uint_type        = GC_namespace::uint_type;         //!< Alias for unsigned integer type
+    using uint_type        = GC_namespace::uint_type;         //!< Alias for std::size_t integer type
     using long_type        = GC_namespace::long_type;         //!< Alias for long integer type
-    using ulong_type       = GC_namespace::ulong_type;        //!< Alias for unsigned long integer type
+    using ulong_type       = GC_namespace::ulong_type;        //!< Alias for std::size_t long integer type
     using real_type        = GC_namespace::real_type;         //!< Alias for real (floating point) type
     using complex_type     = GC_namespace::complex_type;      //!< Alias for complex number type
     using string_type      = GC_namespace::string_type;       //!< Alias for string type
     using vec_pointer_type = GC_namespace::vec_pointer_type;  //!< Alias for vector of pointers type
     using vec_bool_type    = GC_namespace::vec_bool_type;     //!< Alias for vector of booleans type
     using vec_int_type     = GC_namespace::vec_int_type;      //!< Alias for vector of integers type
-    using vec_uint_type    = GC_namespace::vec_uint_type;     //!< Alias for vector of unsigned integers type
+    using vec_uint_type    = GC_namespace::vec_uint_type;     //!< Alias for vector of std::size_t integers type
     using vec_long_type    = GC_namespace::vec_long_type;     //!< Alias for vector of long integers type
-    using vec_ulong_type   = GC_namespace::vec_ulong_type;    //!< Alias for vector of unsigned long integers type
+    using vec_ulong_type   = GC_namespace::vec_ulong_type;    //!< Alias for vector of std::size_t long integers type
     using vec_real_type    = GC_namespace::vec_real_type;     //!< Alias for vector of real numbers type
     using vec_complex_type = GC_namespace::vec_complex_type;  //!< Alias for vector of complex numbers type
     using vec_string_type  = GC_namespace::vec_string_type;   //!< Alias for vector of strings type
@@ -845,40 +760,40 @@ namespace GC_namespace
     void allocate_complex();
 
     //! \brief Allocates memory for a vector of pointers of size `sz`.
-    void allocate_vec_pointer( unsigned sz );
+    void allocate_vec_pointer( std::size_t sz );
 
     //! \brief Allocates memory for a vector of booleans of size `sz`.
-    void allocate_vec_bool( unsigned sz );
+    void allocate_vec_bool( std::size_t sz );
 
     //! \brief Allocates memory for a vector of integers of size `sz`.
-    void allocate_vec_int( unsigned sz );
+    void allocate_vec_int( std::size_t sz );
 
     //! \brief Allocates memory for a vector of long integers of size `sz`.
-    void allocate_vec_long( unsigned sz );
+    void allocate_vec_long( std::size_t sz );
 
     //! \brief Allocates memory for a vector of real numbers of size `sz`.
-    void allocate_vec_real( unsigned sz );
+    void allocate_vec_real( std::size_t sz );
 
     //! \brief Allocates memory for a vector of complex numbers of size `sz`.
-    void allocate_vec_complex( unsigned sz );
+    void allocate_vec_complex( std::size_t sz );
 
     //! \brief Allocates memory for a matrix of integers of size `nr` x `nc`.
-    void allocate_mat_int( unsigned nr, unsigned nc );
+    void allocate_mat_int( std::size_t nr, std::size_t nc );
 
     //! \brief Allocates memory for a matrix of long integers of size `nr` x `nc`.
-    void allocate_mat_long( unsigned nr, unsigned nc );
+    void allocate_mat_long( std::size_t nr, std::size_t nc );
 
     //! \brief Allocates memory for a matrix of real numbers of size `nr` x `nc`.
-    void allocate_mat_real( unsigned nr, unsigned nc );
+    void allocate_mat_real( std::size_t nr, std::size_t nc );
 
     //! \brief Allocates memory for a matrix of complex numbers of size `nr` x `nc`.
-    void allocate_mat_complex( unsigned nr, unsigned nc );
+    void allocate_mat_complex( std::size_t nr, std::size_t nc );
 
     //! \brief Allocates memory for a vector of strings of size `sz`.
-    void allocate_vec_string( unsigned sz );
+    void allocate_vec_string( std::size_t sz );
 
     //! \brief Allocates memory for a vector of `GenericContainer` of size `sz`.
-    void allocate_vector( unsigned sz );
+    void allocate_vector( std::size_t sz );
 
     //! \brief Allocates memory for a map of `GenericContainer`.
     void allocate_map();
@@ -1283,12 +1198,12 @@ namespace GC_namespace
     //! gc.set_vec_pointer(10);  // Allocates a vector of 10 pointers
     //! \endcode
     //!
-    vec_pointer_type & set_vec_pointer( unsigned sz = 0 );
+    vec_pointer_type & set_vec_pointer( std::size_t sz = 0 );
 
     template <typename T> vec_pointer_type & set_vec_pointer( T sz )
     {
       static_assert( std::is_integral_v<T>, "set_vec_pointers() accepts only integral types!" );
-      return set_vec_pointer( static_cast<unsigned>( sz ) );
+      return set_vec_pointer( static_cast<std::size_t>( sz ) );
     }
 
     //! \brief Set the data to `vec_pointer_type` by copying from another vector.
@@ -1321,12 +1236,12 @@ namespace GC_namespace
     //! gc.set_vec_bool(5);  // Allocates a vector of 5 booleans
     //! \endcode
     //!
-    vec_bool_type & set_vec_bool( unsigned sz = 0 );
+    vec_bool_type & set_vec_bool( std::size_t sz = 0 );
 
     template <typename T> vec_bool_type & set_vec_bool( T sz )
     {
       static_assert( std::is_integral_v<T>, "set_vec_bool() accepts only integral types!" );
-      return set_vec_bool( static_cast<unsigned>( sz ) );
+      return set_vec_bool( static_cast<std::size_t>( sz ) );
     }
 
     //! \brief Set the data to `vec_bool_type` by copying from another vector.
@@ -1359,12 +1274,12 @@ namespace GC_namespace
     //! gc.set_vec_int(10);  // Allocates a vector of 10 integers
     //! \endcode
     //!
-    vec_int_type & set_vec_int( unsigned sz = 0 );
+    vec_int_type & set_vec_int( std::size_t sz = 0 );
 
     template <typename T> vec_int_type & set_vec_int( T sz )
     {
       static_assert( std::is_integral_v<T>, "set_vec_ints() accepts only integral types!" );
-      return set_vec_int( static_cast<unsigned>( sz ) );
+      return set_vec_int( static_cast<std::size_t>( sz ) );
     }
 
     //! \brief Set the data to `vec_int_type` by copying from another vector.
@@ -1397,12 +1312,12 @@ namespace GC_namespace
     //! gc.set_vec_long(10);  // Allocates a vector of 10 long integers
     //! \endcode
     //!
-    vec_long_type & set_vec_long( unsigned sz = 0 );
+    vec_long_type & set_vec_long( std::size_t sz = 0 );
 
     template <typename T> vec_long_type & set_vec_long( T sz )
     {
       static_assert( std::is_integral_v<T>, "set_vec_long() accepts only integral types!" );
-      return set_vec_long( static_cast<unsigned>( sz ) );
+      return set_vec_long( static_cast<std::size_t>( sz ) );
     }
 
     //! \brief Set the data to `vec_long_type` by copying from another vector.
@@ -1435,12 +1350,12 @@ namespace GC_namespace
     //! gc.set_vec_real(5);  // Allocates a vector of 5 real numbers
     //! \endcode
     //!
-    vec_real_type & set_vec_real( unsigned sz = 0 );
+    vec_real_type & set_vec_real( std::size_t sz = 0 );
 
     template <typename T> vec_real_type & set_vec_real( T sz )
     {
       static_assert( std::is_integral_v<T>, "set_vec_real() accepts only integral types!" );
-      return set_vec_real( static_cast<unsigned>( sz ) );
+      return set_vec_real( static_cast<std::size_t>( sz ) );
     }
 
     //! \brief Set the data to `vec_real_type` by copying from another vector.
@@ -1473,12 +1388,12 @@ namespace GC_namespace
     //! gc.set_vec_complex(10);  // Allocates a vector of 10 complex numbers
     //! \endcode
     //!
-    vec_complex_type & set_vec_complex( unsigned sz = 0 );
+    vec_complex_type & set_vec_complex( std::size_t sz = 0 );
 
     template <typename T> vec_complex_type & set_vec_complex( T sz )
     {
       static_assert( std::is_integral_v<T>, "set_vec_complex() accepts only integral types!" );
-      return set_vec_complex( static_cast<unsigned>( sz ) );
+      return set_vec_complex( static_cast<std::size_t>( sz ) );
     }
 
     //! \brief Set the data to `vec_complex_type` by copying from another vector.
@@ -1511,12 +1426,12 @@ namespace GC_namespace
     //! gc.set_vec_string(5);  // Allocates a vector of 5 strings
     //! \endcode
     //!
-    vec_string_type & set_vec_string( unsigned sz = 0 );
+    vec_string_type & set_vec_string( std::size_t sz = 0 );
 
     template <typename T> vec_string_type & set_vec_string( T sz )
     {
       static_assert( std::is_integral_v<T>, "set_vec_string() accepts only integral types!" );
-      return set_vec_string( static_cast<unsigned>( sz ) );
+      return set_vec_string( static_cast<std::size_t>( sz ) );
     }
 
     //! \brief Set the data to `vec_string_type` by copying from another vector.
@@ -1550,7 +1465,7 @@ namespace GC_namespace
     //! gc.set_mat_int(3, 4);  // Allocates a 3x4 matrix of integers
     //! \endcode
     //!
-    mat_int_type & set_mat_int( unsigned nr = 0, unsigned nc = 0 );
+    mat_int_type & set_mat_int( std::size_t nr = 0, std::size_t nc = 0 );
 
     //! \brief Set the data to `mat_int_type` by copying from another matrix.
     //!
@@ -1583,7 +1498,7 @@ namespace GC_namespace
     //! gc.set_mat_long(3, 4);  // Allocates a 3x4 matrix of long integers
     //! \endcode
     //!
-    mat_long_type & set_mat_long( unsigned nr = 0, unsigned nc = 0 );
+    mat_long_type & set_mat_long( std::size_t nr = 0, std::size_t nc = 0 );
 
     //! \brief Set the data to `mat_long_type` by copying from another matrix.
     //!
@@ -1616,7 +1531,7 @@ namespace GC_namespace
     //! gc.set_mat_real(3, 4);  // Allocates a 3x4 matrix of real numbers
     //! \endcode
     //!
-    mat_real_type & set_mat_real( unsigned nr = 0, unsigned nc = 0 );
+    mat_real_type & set_mat_real( std::size_t nr = 0, std::size_t nc = 0 );
 
     //! \brief Set the data to `mat_real_type` by copying from another matrix.
     //!
@@ -1649,7 +1564,7 @@ namespace GC_namespace
     //! gc.set_mat_complex(3, 4);  // Allocates a 3x4 matrix of complex numbers
     //! \endcode
     //!
-    mat_complex_type & set_mat_complex( unsigned nr = 0, unsigned nc = 0 );
+    mat_complex_type & set_mat_complex( std::size_t nr = 0, std::size_t nc = 0 );
 
     //! \brief Set the data to `mat_complex_type` by copying from another matrix.
     //!
@@ -1744,7 +1659,7 @@ namespace GC_namespace
     //! GenericContainer container;
     //! auto & vec = container.set_vector(5); // Initializes a vector of size 5
     //! \endcode
-    vector_type & set_vector( unsigned sz = 0 );
+    vector_type & set_vector( std::size_t sz = 0 );
 
     //! \brief Initializes a generic map.
     //!
@@ -1845,29 +1760,29 @@ namespace GC_namespace
     //!
     //! \return The number of elements in the first level of the container.
     //!
-    unsigned get_num_elements() const;
+    std::size_t get_num_elements() const;
 
     //!
     //! \brief Return the number of rows in the internally stored matrix.
     //!
     //! \return The number of rows in the matrix.
     //!
-    unsigned num_rows() const;
+    std::size_t num_rows() const;
     //!
     //! \deprecated
     //!
-    unsigned get_numRows() const { return this->num_rows(); }
+    std::size_t get_numRows() const { return this->num_rows(); }
 
     //!
     //! \brief Return the number of columns in the internally stored matrix.
     //!
     //! \return The number of columns in the matrix.
     //!
-    unsigned num_cols() const;
+    std::size_t num_cols() const;
     //!
     //! \deprecated
     //!
-    unsigned get_numCols() const { return this->num_cols(); }
+    std::size_t get_numCols() const { return this->num_cols(); }
     
     //! \brief Checks whether the stored value represents a numeric type.
     //!
@@ -2318,12 +2233,12 @@ namespace GC_namespace
     int_type get_as_int( string_view const where = "" ) const;
 
     //!
-    //! \brief Get the stored value as an unsigned integer.
+    //! \brief Get the stored value as an std::size_t integer.
     //!
-    //! This function retrieves the data stored in the container as an unsigned integer.
+    //! This function retrieves the data stored in the container as an std::size_t integer.
     //!
     //! \param[in] where Optional context for error messages, indicating the position of the call.
-    //! \return The data stored in the container as an unsigned integer.
+    //! \return The data stored in the container as an std::size_t integer.
     //!
     uint_type get_as_uint( string_view const where = "" ) const;
 
@@ -2338,12 +2253,12 @@ namespace GC_namespace
     long_type get_as_long( string_view const where = "" ) const;
 
     //!
-    //! \brief Get the stored value as an unsigned long integer.
+    //! \brief Get the stored value as an std::size_t long integer.
     //!
-    //! This function retrieves the data stored in the container as an unsigned long integer.
+    //! This function retrieves the data stored in the container as an std::size_t long integer.
     //!
     //! \param[in] where Optional context for error messages, indicating the position of the call.
-    //! \return The data stored in the container as an unsigned long integer.
+    //! \return The data stored in the container as an std::size_t long integer.
     //!
     ulong_type get_as_ulong( string_view const where = "" ) const;
 
@@ -2776,7 +2691,7 @@ namespace GC_namespace
     void copyto_vec_int( vec_int_type & v, string_view = "" ) const;
 
     //!
-    //! Copy internal data to a vector of unsigned integers
+    //! Copy internal data to a vector of std::size_t integers
     //!
     //! \param[out] v     Vector to store the data
     //! \param[in]  where Position added to the error message
@@ -2806,7 +2721,7 @@ namespace GC_namespace
     void copyto_vec_long( vec_long_type & v, string_view = "" ) const;
 
     //!
-    //! Copy internal data to a vector of unsigned long integers
+    //! Copy internal data to a vector of std::size_t long integers
     //!
     //! \param[out] v     Vector to store the data
     //! \param[in]  where Position added to the error message
@@ -2951,12 +2866,12 @@ namespace GC_namespace
     //! \return The value as `real_type`
     //!
     //! \code
-    //! unsigned index = 2;
+    //! std::size_t index = 2;
     //! real_type value = container.get_number_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    real_type get_number_at( unsigned i, string_view = "" ) const;
+    real_type get_number_at( std::size_t i, string_view = "" ) const;
 
     //!
     //! If the `i`-th element of the vector is convertible to
@@ -2967,12 +2882,12 @@ namespace GC_namespace
     //! \return The value as `complex_type`
     //!
     //! \code
-    //! unsigned index = 2;
+    //! std::size_t index = 2;
     //! complex_type value = container.get_complex_number_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    complex_type get_complex_number_at( unsigned i, string_view = "" ) const;
+    complex_type get_complex_number_at( std::size_t i, string_view = "" ) const;
 
     //!
     //! If the `i`-th element of the vector is convertible to
@@ -2984,13 +2899,13 @@ namespace GC_namespace
     //! \param[in]  where Position added to the error message
     //!
     //! \code
-    //! unsigned index = 2;
+    //! std::size_t index = 2;
     //! real_type realPart, imagPart;
     //! container.get_complex_number_at(index, realPart, imagPart, "In function example_call");
     //! // Use realPart and imagPart...
     //! \endcode
     //!
-    void get_complex_number_at( unsigned i, real_type & re, real_type & im, string_view = "" ) const;
+    void get_complex_number_at( std::size_t i, real_type & re, real_type & im, string_view = "" ) const;
 
     //!
     //! Get the `i`-th pointer of the vector of pointers.
@@ -2999,12 +2914,12 @@ namespace GC_namespace
     //! \return Reference to the pointer
     //!
     //! \code
-    //! unsigned index = 1;
+    //! std::size_t index = 1;
     //! auto& pointer = container.get_pointer_at<MyType>(index);
     //! // Use pointer...
     //! \endcode
     //!
-    template <typename T> T & get_pointer_at( unsigned i ) { return ( *this )[i].get_pointer<T>(); }
+    template <typename T> T & get_pointer_at( std::size_t i ) { return ( *this )[i].get_pointer<T>(); }
 
     //!
     //! Get the `i`-th pointer of the vector of pointers.
@@ -3013,12 +2928,12 @@ namespace GC_namespace
     //! \return The stored pointer
     //!
     //! \code
-    //! unsigned index = 1;
+    //! std::size_t index = 1;
     //! MyType pointer = container.get_pointer_at<MyType>(index);
     //! // Use pointer...
     //! \endcode
     //!
-    template <typename T> T get_pointer_at( unsigned i ) const { return ( *this )[i].get_pointer<T>(); }
+    template <typename T> T get_pointer_at( std::size_t i ) const { return ( *this )[i].get_pointer<T>(); }
     //!< Return `i`-th generic pointer (if fails issue an error).
 
     //!
@@ -3028,17 +2943,17 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 3;
+    //! std::size_t index = 3;
     //! bool_type value = container.get_bool_at(index);
     //! // Use value...
     //! \endcode
     //!
-    bool_type get_bool_at( unsigned i );
+    bool_type get_bool_at( std::size_t i );
 
     template <typename T> bool_type get_bool_at( T i )
     {
       static_assert( std::is_integral_v<T>, "get_bool_at() accepts only integral types!" );
-      return get_bool_at( static_cast<unsigned>( i ) );
+      return get_bool_at( static_cast<std::size_t>( i ) );
     }
 
     //!
@@ -3049,12 +2964,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 3;
+    //! std::size_t index = 3;
     //! bool_type value = container.get_bool_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    bool_type get_bool_at( unsigned i, string_view const where ) const;
+    bool_type get_bool_at( std::size_t i, string_view const where ) const;
 
     //!
     //! Get the `i`-th integer of the stored data.
@@ -3063,17 +2978,17 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 4;
+    //! std::size_t index = 4;
     //! int_type &value = container.get_int_at(index);
     //! // Use value...
     //! \endcode
     //!
-    int_type & get_int_at( unsigned i );
+    int_type & get_int_at( std::size_t i );
 
     template <typename T> int_type & get_int_at( T i )
     {
       static_assert( std::is_integral_v<T>, "get_int_at() accepts only integral types!" );
-      return get_int_at( static_cast<unsigned>( i ) );
+      return get_int_at( static_cast<std::size_t>( i ) );
     }
 
     //!
@@ -3084,12 +2999,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 4;
+    //! std::size_t index = 4;
     //! int_type const &value = container.get_int_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    int_type const & get_int_at( unsigned i, string_view const where ) const;
+    int_type const & get_int_at( std::size_t i, string_view const where ) const;
 
     //!
     //! Get the `i`-th long integer of the stored data.
@@ -3098,17 +3013,17 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 5;
+    //! std::size_t index = 5;
     //! long_type &value = container.get_long_at(index);
     //! // Use value...
     //! \endcode
     //!
-    long_type & get_long_at( unsigned i );
+    long_type & get_long_at( std::size_t i );
 
     template <typename T> long_type & get_long_at( T i )
     {
       static_assert( std::is_integral_v<T>, "get_long_at() accepts only integral types!" );
-      return get_long_at( static_cast<unsigned>( i ) );
+      return get_long_at( static_cast<std::size_t>( i ) );
     }
 
     //!
@@ -3119,12 +3034,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 5;
+    //! std::size_t index = 5;
     //! long_type const &value = container.get_long_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    long_type const & get_long_at( unsigned i, string_view const where ) const;
+    long_type const & get_long_at( std::size_t i, string_view const where ) const;
 
     //!
     //! Get the `i`-th `real_type` of the stored data.
@@ -3133,17 +3048,17 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 6;
+    //! std::size_t index = 6;
     //! real_type &value = container.get_real_at(index);
     //! // Use value...
     //! \endcode
     //!
-    real_type & get_real_at( unsigned i );
+    real_type & get_real_at( std::size_t i );
 
     template <typename T> real_type & get_real_at( T i )
     {
       static_assert( std::is_integral_v<T>, "get_real_at() accepts only integral types!" );
-      return get_real_at( static_cast<unsigned>( i ) );
+      return get_real_at( static_cast<std::size_t>( i ) );
     }
 
     //!
@@ -3154,12 +3069,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 6;
+    //! std::size_t index = 6;
     //! real_type const &value = container.get_real_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    real_type const & get_real_at( unsigned i, string_view const where ) const;
+    real_type const & get_real_at( std::size_t i, string_view const where ) const;
 
     //!
     //! Get the `i`-th `complex_type` of the stored data.
@@ -3168,17 +3083,17 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 7;
+    //! std::size_t index = 7;
     //! complex_type &value = container.get_complex_at(index);
     //! // Use value...
     //! \endcode
     //!
-    complex_type & get_complex_at( unsigned i );
+    complex_type & get_complex_at( std::size_t i );
 
     template <typename T> complex_type & get_complex_at( T i )
     {
       static_assert( std::is_integral_v<T>, "get_complex_at() accepts only integral types!" );
-      return get_complex_at( static_cast<unsigned>( i ) );
+      return get_complex_at( static_cast<std::size_t>( i ) );
     }
 
     //!
@@ -3189,12 +3104,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 7;
+    //! std::size_t index = 7;
     //! complex_type const &value = container.get_complex_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    complex_type const & get_complex_at( unsigned i, string_view const where ) const;
+    complex_type const & get_complex_at( std::size_t i, string_view const where ) const;
 
     //!
     //! Get the `i`-th integer of the stored data in a matrix.
@@ -3204,12 +3119,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 0, col = 1;
+    //! std::size_t row = 0, col = 1;
     //! int_type &value = container.get_int_at(row, col);
     //! // Use value...
     //! \endcode
     //!
-    int_type & get_int_at( unsigned i, unsigned j );
+    int_type & get_int_at( std::size_t i, std::size_t j );
 
     //!
     //! Get the `i`-th const integer of the stored data in a matrix.
@@ -3220,12 +3135,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 0, col = 1;
+    //! std::size_t row = 0, col = 1;
     //! int_type const &value = container.get_int_at(row, col, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    int_type const & get_int_at( unsigned i, unsigned j, string_view const where ) const;
+    int_type const & get_int_at( std::size_t i, std::size_t j, string_view const where ) const;
 
     //!
     //! Get the `i`-th long integer of the stored data in a matrix.
@@ -3235,12 +3150,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 0, col = 2;
+    //! std::size_t row = 0, col = 2;
     //! long_type &value = container.get_long_at(row, col);
     //! // Use value...
     //! \endcode
     //!
-    long_type & get_long_at( unsigned i, unsigned j );
+    long_type & get_long_at( std::size_t i, std::size_t j );
 
     //!
     //! Get the `i`-th const long integer of the stored data in a matrix.
@@ -3251,12 +3166,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 0, col = 2;
+    //! std::size_t row = 0, col = 2;
     //! long_type const &value = container.get_long_at(row, col, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    long_type const & get_long_at( unsigned i, unsigned j, string_view const where ) const;
+    long_type const & get_long_at( std::size_t i, std::size_t j, string_view const where ) const;
 
     //!
     //! Get the `i`-th `real_type` of the stored data in a matrix.
@@ -3266,12 +3181,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 1, col = 1;
+    //! std::size_t row = 1, col = 1;
     //! real_type &value = container.get_real_at(row, col);
     //! // Use value...
     //! \endcode
     //!
-    real_type & get_real_at( unsigned i, unsigned j );
+    real_type & get_real_at( std::size_t i, std::size_t j );
 
     //!
     //! Get the `i`-th const `real_type` of the stored data in a matrix.
@@ -3282,12 +3197,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 1, col = 1;
+    //! std::size_t row = 1, col = 1;
     //! real_type const &value = container.get_real_at(row, col, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    real_type const & get_real_at( unsigned i, unsigned j, string_view const where ) const;
+    real_type const & get_real_at( std::size_t i, std::size_t j, string_view const where ) const;
 
     //!
     //! Get the `i`-th `complex_type` of the stored data in a matrix.
@@ -3297,12 +3212,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 1, col = 2;
+    //! std::size_t row = 1, col = 2;
     //! complex_type &value = container.get_complex_at(row, col);
     //! // Use value...
     //! \endcode
     //!
-    complex_type & get_complex_at( unsigned i, unsigned j );
+    complex_type & get_complex_at( std::size_t i, std::size_t j );
 
     //!
     //! Get the `i`-th const `complex_type` of the stored data in a matrix.
@@ -3313,12 +3228,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned row = 1, col = 2;
+    //! std::size_t row = 1, col = 2;
     //! complex_type const &value = container.get_complex_at(row, col, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    complex_type const & get_complex_at( unsigned i, unsigned j, string_view const where ) const;
+    complex_type const & get_complex_at( std::size_t i, std::size_t j, string_view const where ) const;
 
     //!
     //! Get the `i`-th string of the stored data.
@@ -3327,17 +3242,17 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 0;
+    //! std::size_t index = 0;
     //! string_type &value = container.get_string_at(index);
     //! // Use value...
     //! \endcode
     //!
-    string_type & get_string_at( unsigned i );
+    string_type & get_string_at( std::size_t i );
 
     template <typename T> string_type & get_string_at( T i )
     {
       static_assert( std::is_integral_v<T>, "get_string_at() accepts only integral types!" );
-      return get_string_at( static_cast<unsigned>( i ) );
+      return get_string_at( static_cast<std::size_t>( i ) );
     }
 
     //!
@@ -3348,12 +3263,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 0;
+    //! std::size_t index = 0;
     //! string_view value = container.get_string_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    string_type const & get_string_at( unsigned i, string_view const where ) const;
+    string_type const & get_string_at( std::size_t i, string_view const where ) const;
 
     //!
     //! Get the `i`-th const `GenericContainer` of the stored data.
@@ -3362,17 +3277,17 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 0;
+    //! std::size_t index = 0;
     //! GenericContainer &value = container.get_gc_at(index);
     //! // Use value...
     //! \endcode
     //!
-    GenericContainer & get_gc_at( unsigned i );
+    GenericContainer & get_gc_at( std::size_t i );
 
     template <typename T> GenericContainer & get_gc_at( T i )
     {
       static_assert( std::is_integral_v<T>, "get_gc_at() accepts only integral types!" );
-      return get_gc_at( static_cast<unsigned>( i ) );
+      return get_gc_at( static_cast<std::size_t>( i ) );
     }
 
     //!
@@ -3383,12 +3298,12 @@ namespace GC_namespace
     //! \return The stored value
     //!
     //! \code
-    //! unsigned index = 0;
+    //! std::size_t index = 0;
     //! GenericContainer const &value = container.get_gc_at(index, "In function example_call");
     //! // Use value...
     //! \endcode
     //!
-    GenericContainer const & get_gc_at( unsigned i, string_view const where ) const;
+    GenericContainer const & get_gc_at( std::size_t i, string_view const where ) const;
 
     ///@}
 
@@ -3458,7 +3373,7 @@ namespace GC_namespace
     //! // Use containerItem...
     //! \endcode
     //!
-    GenericContainer & operator[]( unsigned i );
+    GenericContainer & operator[]( std::size_t i );
 
     //!
     //! Get the `i`-th const `GenericContainer` of the stored data.
@@ -3472,7 +3387,7 @@ namespace GC_namespace
     //! // Use constContainerItem...
     //! \endcode
     //!
-    GenericContainer const & operator[]( unsigned i ) const;
+    GenericContainer const & operator[]( std::size_t i ) const;
 
     //!
     //! Get the `i`-th `GenericContainer` of the stored data using a string key.
@@ -3519,7 +3434,7 @@ namespace GC_namespace
     //! }
     //! \endcode
     //!
-    GenericContainer & operator()( unsigned i, string_view = "" );
+    GenericContainer & operator()( std::size_t i, string_view = "" );
 
     //!
     //! Get the `i`-th const `GenericContainer` of the stored data with error message.
@@ -3538,7 +3453,7 @@ namespace GC_namespace
     //! }
     //! \endcode
     //!
-    GenericContainer const & operator()( unsigned i, string_view = "" ) const;
+    GenericContainer const & operator()( std::size_t i, string_view = "" ) const;
 
     //!
     //! Get a `GenericContainer` in the stored data using a string key with error message.
@@ -3629,9 +3544,9 @@ namespace GC_namespace
     //! \param[in] a Integer to be stored
     //!
     //! \code
-    //! // Example usage of setting an unsigned integer
+    //! // Example usage of setting an std::size_t integer
     //! GenericContainer container;
-    //! container.set(42u); // Store 42 as an unsigned integer in the container
+    //! container.set(42u); // Store 42 as an std::size_t integer in the container
     //! \endcode
     //!
     void set( uint_type const & a ) { this->set_int( int_type( a ) ); }
@@ -3650,14 +3565,14 @@ namespace GC_namespace
     void set( int_type const & a ) { this->set_int( a ); }
 
     //!
-    //! Assign an unsigned integer to the generic container.
+    //! Assign an std::size_t integer to the generic container.
     //!
     //! \param[in] a Unsigned integer to be stored
     //!
     //! \code
-    //! // Example usage of setting an unsigned long integer
+    //! // Example usage of setting an std::size_t long integer
     //! GenericContainer container;
-    //! container.set(100000ul); // Store 100000 as an unsigned long integer in the container
+    //! container.set(100000ul); // Store 100000 as an std::size_t long integer in the container
     //! \endcode
     //!
     void set( ulong_type const & a ) { this->set_long( long_type( a ) ); }
@@ -3815,9 +3730,9 @@ namespace GC_namespace
     }
 
     //!
-    //! Assign an unsigned long to the generic container.
+    //! Assign an std::size_t long to the generic container.
     //!
-    //! \param[in] a unsigned long to be stored
+    //! \param[in] a std::size_t long to be stored
     //!
     GenericContainer & operator=( ulong_type const & a )
     {

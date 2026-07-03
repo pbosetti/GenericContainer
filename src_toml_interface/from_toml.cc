@@ -127,7 +127,7 @@ namespace GC_namespace
     else if ( node.is_array_of_tables() )
     {
       gc.set_vector();
-      unsigned i{ 0 };
+      std::size_t i{ 0 };
       for ( const auto & value : *node.as_array() )
       {
         ok = TOML_to_GC( value, gc[i++] );
@@ -169,7 +169,7 @@ namespace GC_namespace
       else
       {
         gc.set_vector();
-        unsigned i{ 0 };
+        std::size_t i{ 0 };
         for ( const auto & value : *ary )
         {
           ok = TOML_to_GC( value, gc[i++] );

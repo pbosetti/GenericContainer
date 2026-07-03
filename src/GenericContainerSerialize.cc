@@ -550,7 +550,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
-        allocate_vec_pointer( static_cast<unsigned>( i32 ) );
+        allocate_vec_pointer( static_cast<std::size_t>( i32 ) );
         for ( auto & p : _v_p() )
         {
           int64_t ptr_value{ 0 };
@@ -581,7 +581,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
-        allocate_vec_int( static_cast<unsigned>( i32 ) );
+        allocate_vec_int( static_cast<std::size_t>( i32 ) );
         for ( auto & i : _v_i() )
         {
           sz = buffer_to_int32( buffer, buffer_dim - nbyte, &i );
@@ -594,7 +594,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
-        allocate_vec_long( static_cast<unsigned>( i32 ) );
+        allocate_vec_long( static_cast<std::size_t>( i32 ) );
         for ( auto & i : _v_l() )
         {
           sz = buffer_to_int64( buffer, buffer_dim - nbyte, &i );
@@ -607,7 +607,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
-        allocate_vec_real( static_cast<unsigned>( i32 ) );
+        allocate_vec_real( static_cast<std::size_t>( i32 ) );
         for ( auto & r : _v_r() )
         {
           sz = buffer_to_double( buffer, buffer_dim - nbyte, &r );
@@ -620,7 +620,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
-        allocate_vec_complex( static_cast<unsigned>( i32 ) );
+        allocate_vec_complex( static_cast<std::size_t>( i32 ) );
         for ( auto & c : _v_c() )
         {
           sz = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
@@ -641,7 +641,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
-        allocate_mat_int( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
+        allocate_mat_int( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & i : _m_i() )
         {
           sz = buffer_to_int32( buffer, buffer_dim - nbyte, &i );
@@ -657,7 +657,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
-        allocate_mat_long( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
+        allocate_mat_long( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & i : _m_l() )
         {
           sz = buffer_to_int64( buffer, buffer_dim - nbyte, &i );
@@ -673,7 +673,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
-        allocate_mat_real( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
+        allocate_mat_real( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & r : _m_r() )
         {
           sz = buffer_to_double( buffer, buffer_dim - nbyte, &r );
@@ -689,7 +689,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( nr >= 0 && nc >= 0, "GenericContainer::de_serialize, invalid matrix dimensions" );
-        allocate_mat_complex( static_cast<unsigned>( nr ), static_cast<unsigned>( nc ) );
+        allocate_mat_complex( static_cast<std::size_t>( nr ), static_cast<std::size_t>( nc ) );
         for ( auto & c : _m_c() )
         {
           sz = buffer_to_double( buffer, buffer_dim - nbyte, &bf );
@@ -707,7 +707,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
-        allocate_vec_string( static_cast<unsigned>( i32 ) );
+        allocate_vec_string( static_cast<std::size_t>( i32 ) );
         for ( auto & s : _v_s() )
         {
           nb = buffer_to_int32( buffer, buffer_dim - nbyte, &i32 );
@@ -725,7 +725,7 @@ namespace GC_namespace
         buffer += nb;
         nbyte += nb;
         GC_ASSERT( i32 >= 0, "GenericContainer::de_serialize, invalid vector size" );
-        allocate_vector( static_cast<unsigned>( i32 ) );
+        allocate_vector( static_cast<std::size_t>( i32 ) );
         for ( auto & S : _v() )
         {
           sz = S.de_serialize( buffer_dim - nbyte, buffer );

@@ -73,14 +73,14 @@ namespace GC_namespace
   void GenericContainer::copyto_vec_int( vec_int_type & v, string_view const where ) const
   {
     v.clear();
-    unsigned ne = get_num_elements();
+    std::size_t ne = get_num_elements();
     v.reserve( ne );
     long_type    lval;
     real_type    rval;
     complex_type cval;
     int_type     val{ 0 };
     v.reserve( ne );
-    for ( unsigned i{ 0 }; i < ne; ++i )
+    for ( std::size_t i{ 0 }; i < ne; ++i )
     {
       switch ( get_type() )
       {
@@ -89,14 +89,14 @@ namespace GC_namespace
         case GC_type::LONG:
           lval = _l();
           GC_ASSERT(
-            static_cast<int_type>( lval ) == lval,
+            std::in_range<int_type>( lval ),
             where << " copyto_vec_int: v[" << i << "] = " << lval << " cannot be converted to `integer'" );
           val = static_cast<int_type>( lval );
           break;
         case GC_type::REAL:
           rval = _r();
           GC_ASSERT(
-            isInteger( rval ),
+            GC_details::real_fits_integral<int_type>( rval ),
             where << " copyto_vec_int: v[" << i << "] = " << rval << " cannot be converted to `integer'" )
           val = static_cast<int_type>( rval );
           break;
@@ -105,28 +105,28 @@ namespace GC_namespace
         case GC_type::VEC_LONG:
           lval = _v_l()[i];
           GC_ASSERT(
-            static_cast<int_type>( lval ) == lval,
+            std::in_range<int_type>( lval ),
             where << " copyto_vec_int: v[" << i << "] = " << lval << " cannot be converted to `integer'" )
           val = static_cast<int_type>( lval );
           break;
         case GC_type::VEC_REAL:
           rval = _v_r()[i];
           GC_ASSERT(
-            isInteger( rval ),
+            GC_details::real_fits_integral<int_type>( rval ),
             where << " copyto_vec_int: v[" << i << "] = " << rval << " cannot be converted to `integer'" )
           val = static_cast<int_type>( rval );
           break;
         case GC_type::COMPLEX:
           cval = _c();
           GC_ASSERT(
-            isZero0( cval.imag() ) && isInteger( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<int_type>( cval.real() ),
             where << " copyto_vec_int: v[" << i << "] = " << cval << " cannot be converted to `integer'" )
           val = static_cast<int_type>( cval.real() );
           break;
         case GC_type::VEC_COMPLEX:
           cval = _v_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isInteger( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<int_type>( cval.real() ),
             where << " copyto_vec_int: v[" << i << "] = " << cval << " cannot be converted to `integer'" )
           val = static_cast<int_type>( cval.real() );
           break;
@@ -134,21 +134,21 @@ namespace GC_namespace
         case GC_type::MAT_LONG:
           lval = _m_l()[i];
           GC_ASSERT(
-            static_cast<int_type>( lval ) == lval,
+            std::in_range<int_type>( lval ),
             where << " copyto_vec_int: v[" << i << "] = " << lval << " cannot be converted to `integer'" );
           val = static_cast<int_type>( lval );
           break;
         case GC_type::MAT_REAL:
           rval = _m_r()[i];
           GC_ASSERT(
-            isInteger( rval ),
+            GC_details::real_fits_integral<int_type>( rval ),
             where << " copyto_vec_int: v[" << i << "] = " << rval << " cannot be converted to `integer'" )
           val = static_cast<int_type>( rval );
           break;
         case GC_type::MAT_COMPLEX:
           cval = _m_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isInteger( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<int_type>( cval.real() ),
             where << " copyto_vec_int: v[" << i << "] = " << cval << " cannot be converted to `integer'" )
           val = static_cast<int_type>( cval.real() );
           break;
@@ -171,7 +171,7 @@ namespace GC_namespace
   void GenericContainer::copyto_vec_uint( vec_uint_type & v, string_view const where ) const
   {
     v.clear();
-    unsigned ne{ get_num_elements() };
+    std::size_t ne{ get_num_elements() };
     v.reserve( ne );
     int_type     ival;
     long_type    lval;
@@ -179,7 +179,7 @@ namespace GC_namespace
     complex_type cval;
     uint_type    val{ 0 };
     v.reserve( ne );
-    for ( unsigned i{ 0 }; i < ne; ++i )
+    for ( std::size_t i{ 0 }; i < ne; ++i )
     {
       switch ( get_type() )
       {
@@ -187,21 +187,21 @@ namespace GC_namespace
         case GC_type::INTEGER:
           ival = _i();
           GC_ASSERT(
-            ival >= 0,
+            std::in_range<uint_type>( ival ),
             where << " copyto_vec_uint: value = " << ival << " cannot be converted to `unsigned integer'" );
           val = static_cast<uint_type>( ival );
           break;
         case GC_type::LONG:
           lval = _l();
           GC_ASSERT(
-            static_cast<int_type>( lval ) == lval && lval >= 0,
+            std::in_range<uint_type>( lval ),
             where << " copyto_vec_uint: v[" << i << "] = " << lval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( lval );
           break;
         case GC_type::REAL:
           rval = _r();
           GC_ASSERT(
-            isUnsigned( rval ),
+            GC_details::real_fits_integral<uint_type>( rval ),
             where << " copyto_vec_uint: v[" << i << "] = " << rval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( rval );
           break;
@@ -209,63 +209,63 @@ namespace GC_namespace
         case GC_type::VEC_INTEGER:
           ival = _v_i()[i];
           GC_ASSERT(
-            ival >= 0,
+            std::in_range<uint_type>( ival ),
             where << " copyto_vec_uint: value = " << ival << " cannot be converted to `unsigned integer'" );
           val = static_cast<uint_type>( ival );
           break;
         case GC_type::VEC_LONG:
           lval = _v_l()[i];
           GC_ASSERT(
-            static_cast<int_type>( lval ) == lval && lval >= 0,
+            std::in_range<uint_type>( lval ),
             where << " copyto_vec_uint: v[" << i << "] = " << lval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( lval );
           break;
         case GC_type::VEC_REAL:
           rval = _v_r()[i];
           GC_ASSERT(
-            isUnsigned( rval ),
+            GC_details::real_fits_integral<uint_type>( rval ),
             where << " copyto_vec_uint: v[" << i << "] = " << rval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( rval );
           break;
         case GC_type::COMPLEX:
           cval = _c();
           GC_ASSERT(
-            isZero0( cval.imag() ) && isUnsigned( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<uint_type>( cval.real() ),
             where << " copyto_vec_uint: v[" << i << "] = " << cval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( cval.real() );
           break;
         case GC_type::VEC_COMPLEX:
           cval = _v_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isUnsigned( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<uint_type>( cval.real() ),
             where << " copyto_vec_int: v[" << i << "] = " << cval << " cannot be converted to `unsigned integer'" );
           val = static_cast<uint_type>( cval.real() );
           break;
         case GC_type::MAT_INTEGER:
           ival = _m_i()[i];
           GC_ASSERT(
-            ival >= 0,
+            std::in_range<uint_type>( ival ),
             where << " copyto_vec_uint: value = " << ival << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( ival );
           break;
         case GC_type::MAT_LONG:
           lval = _m_l()[i];
           GC_ASSERT(
-            static_cast<int_type>( lval ) == lval && lval >= 0,
+            std::in_range<uint_type>( lval ),
             where << " copyto_vec_uint: v[" << i << "] = " << lval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( lval );
           break;
         case GC_type::MAT_REAL:
           rval = _m_r()[i];
           GC_ASSERT(
-            isUnsigned( rval ),
+            GC_details::real_fits_integral<uint_type>( rval ),
             where << " copyto_vec_uint: v[" << i << "] = " << rval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( rval );
           break;
         case GC_type::MAT_COMPLEX:
           cval = _m_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isUnsigned( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<uint_type>( cval.real() ),
             where << " copyto_vec_uint: v[" << i << "] = " << cval << " cannot be converted to `unsigned integer'" )
           val = static_cast<uint_type>( cval.real() );
           break;
@@ -288,13 +288,13 @@ namespace GC_namespace
   void GenericContainer::copyto_vec_long( vec_long_type & v, string_view const where ) const
   {
     v.clear();
-    unsigned ne{ get_num_elements() };
+    std::size_t ne{ get_num_elements() };
     v.reserve( ne );
     real_type    rval;
     complex_type cval;
     long_type    val{ 0 };
     v.reserve( ne );
-    for ( unsigned i{ 0 }; i < ne; ++i )
+    for ( std::size_t i{ 0 }; i < ne; ++i )
     {
       switch ( get_type() )
       {
@@ -304,7 +304,7 @@ namespace GC_namespace
         case GC_type::REAL:
           rval = _r();
           GC_ASSERT(
-            isInteger( rval ),
+            GC_details::real_fits_integral<long_type>( rval ),
             where << " copyto_vec_long: v[" << i << "] = " << rval << " cannot be converted to `long'" )
           val = static_cast<long_type>( rval );
           break;
@@ -314,21 +314,21 @@ namespace GC_namespace
         case GC_type::VEC_REAL:
           rval = _v_r()[i];
           GC_ASSERT(
-            isInteger( rval ),
+            GC_details::real_fits_integral<long_type>( rval ),
             where << " copyto_vec_long: v[" << i << "] = " << rval << " cannot be converted to `long'" )
           val = static_cast<long_type>( rval );
           break;
         case GC_type::COMPLEX:
           cval = _c();
           GC_ASSERT(
-            isZero0( cval.imag() ) && isInteger( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<long_type>( cval.real() ),
             where << " copyto_vec_long: v[" << i << "] = " << cval << " cannot be converted to `long'" )
           val = static_cast<long_type>( cval.real() );
           break;
         case GC_type::VEC_COMPLEX:
           cval = _v_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isInteger( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<long_type>( cval.real() ),
             where << " copyto_vec_long: v[" << i << "] = " << cval << " cannot be converted to `long'" )
           val = static_cast<long_type>( cval.real() );
           break;
@@ -337,14 +337,14 @@ namespace GC_namespace
         case GC_type::MAT_REAL:
           rval = _m_r()[i];
           GC_ASSERT(
-            isInteger( rval ),
+            GC_details::real_fits_integral<long_type>( rval ),
             where << " copyto_vec_long: v[" << i << "] = " << rval << " cannot be converted to `long'" )
           val = static_cast<long_type>( rval );
           break;
         case GC_type::MAT_COMPLEX:
           cval = _m_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isInteger( cval.real() ),
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<long_type>( cval.real() ),
             where << " copyto_vec_long: v[" << i << "] = " << cval << " cannot be converted to `long'" )
           val = static_cast<long_type>( cval.real() );
           break;
@@ -367,7 +367,7 @@ namespace GC_namespace
   void GenericContainer::copyto_vec_ulong( vec_ulong_type & v, string_view const where ) const
   {
     v.clear();
-    unsigned ne{ get_num_elements() };
+    std::size_t ne{ get_num_elements() };
     v.reserve( ne );
     int_type     ival;
     long_type    lval;
@@ -375,7 +375,7 @@ namespace GC_namespace
     complex_type cval;
     ulong_type   val{ 0 };
     v.reserve( ne );
-    for ( unsigned i{ 0 }; i < ne; ++i )
+    for ( std::size_t i{ 0 }; i < ne; ++i )
     {
       switch ( get_type() )
       {
@@ -383,86 +383,86 @@ namespace GC_namespace
         case GC_type::INTEGER:
           ival = _i();
           GC_ASSERT(
-            ival >= 0,
-            where << " copyto_vec_ulong: value = " << ival << " cannot be converted to `unsigned long'" );
+            std::in_range<ulong_type>( ival ),
+            where << " copyto_vec_ulong: value = " << ival << " cannot be converted to `std::size_t long'" );
           val = static_cast<ulong_type>( ival );
           break;
         case GC_type::LONG:
           lval = _l();
           GC_ASSERT(
-            lval >= 0,
-            where << " copyto_vec_ulong: v[" << i << "] = " << lval << " cannot be converted to `unsigned long'" )
+            std::in_range<ulong_type>( lval ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << lval << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( lval );
           break;
         case GC_type::REAL:
           rval = _r();
           GC_ASSERT(
-            isUnsigned( rval ),
-            where << " copyto_vec_ulong: v[" << i << "] = " << rval << " cannot be converted to `unsigned long'" )
+            GC_details::real_fits_integral<ulong_type>( rval ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << rval << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( rval );
           break;
         case GC_type::VEC_BOOL: val = _v_b()[i] ? 1 : 0; break;
         case GC_type::VEC_INTEGER:
           ival = _v_i()[i];
           GC_ASSERT(
-            ival >= 0,
-            where << " copyto_vec_ulong: value = " << ival << " cannot be converted to `unsigned long'" )
+            std::in_range<ulong_type>( ival ),
+            where << " copyto_vec_ulong: value = " << ival << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( ival );
           break;
         case GC_type::VEC_LONG:
           lval = _v_l()[i];
           GC_ASSERT(
-            lval >= 0,
-            where << " copyto_vec_ulong: v[" << i << "] = " << lval << " cannot be converted to `unsigned long'" );
+            std::in_range<ulong_type>( lval ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << lval << " cannot be converted to `std::size_t long'" );
           val = static_cast<ulong_type>( lval );
           break;
         case GC_type::VEC_REAL:
           rval = _v_r()[i];
           GC_ASSERT(
-            isUnsigned( rval ),
-            where << " copyto_vec_ulong: v[" << i << "] = " << rval << " cannot be converted to `unsigned long'" )
+            GC_details::real_fits_integral<ulong_type>( rval ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << rval << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( rval );
           break;
         case GC_type::COMPLEX:
           cval = _c();
           GC_ASSERT(
-            isZero0( cval.imag() ) && isUnsigned( cval.real() ),
-            where << " copyto_vec_ulong: v[" << i << "] = " << cval << " cannot be converted to `unsigned long'" )
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<ulong_type>( cval.real() ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << cval << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( cval.real() );
           break;
         case GC_type::VEC_COMPLEX:
           cval = _v_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isUnsigned( cval.real() ),
-            where << " copyto_vec_ulong: v[" << i << "] = " << cval << " cannot be converted to `unsigned long'" );
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<ulong_type>( cval.real() ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << cval << " cannot be converted to `std::size_t long'" );
           val = static_cast<ulong_type>( cval.real() );
           break;
         case GC_type::MAT_INTEGER:
           ival = _m_i()[i];
           GC_ASSERT(
-            ival >= 0,
-            where << " copyto_vec_ulong: value = " << ival << " cannot be converted to `unsigned long'" )
+            std::in_range<ulong_type>( ival ),
+            where << " copyto_vec_ulong: value = " << ival << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( ival );
           break;
         case GC_type::MAT_LONG:
           lval = _m_l()[i];
           GC_ASSERT(
-            lval >= 0,
-            where << " copyto_vec_ulong: v[" << i << "] = " << lval << " cannot be converted to `unsigned long'" )
+            std::in_range<ulong_type>( lval ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << lval << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( lval );
           break;
         case GC_type::MAT_REAL:
           rval = _m_r()[i];
           GC_ASSERT(
-            isUnsigned( rval ),
-            where << " copyto_vec_ulong: v[" << i << "] = " << rval << " cannot be converted to `unsigned long'" )
+            GC_details::real_fits_integral<ulong_type>( rval ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << rval << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( rval );
           break;
         case GC_type::MAT_COMPLEX:
           cval = _m_c()[i];
           GC_ASSERT(
-            isZero0( cval.imag() ) && isUnsigned( cval.real() ),
-            where << " copyto_vec_ulong: v[" << i << "] = " << cval << " cannot be converted to `unsigned long'" )
+            isZero0( cval.imag() ) && GC_details::real_fits_integral<ulong_type>( cval.real() ),
+            where << " copyto_vec_ulong: v[" << i << "] = " << cval << " cannot be converted to `std::size_t long'" )
           val = static_cast<ulong_type>( cval.real() );
           break;
         case GC_type::VECTOR: val = ( *this )( i ).get_as_ulong( "copyto_vec_ulong" ); break;
@@ -485,12 +485,12 @@ namespace GC_namespace
   void GenericContainer::copyto_vec_real( vec_real_type & v, string_view const where ) const
   {
     v.clear();
-    unsigned ne{ get_num_elements() };
+    std::size_t ne{ get_num_elements() };
     v.reserve( ne );
     complex_type cval;
     real_type    val{ 0 };
     v.reserve( ne );
-    for ( unsigned i{ 0 }; i < ne; ++i )
+    for ( std::size_t i{ 0 }; i < ne; ++i )
     {
       switch ( get_type() )
       {
@@ -546,11 +546,11 @@ namespace GC_namespace
   void GenericContainer::copyto_vec_complex( vec_complex_type & v, string_view const where ) const
   {
     v.clear();
-    unsigned const ne{ get_num_elements() };
+    std::size_t const ne{ get_num_elements() };
     v.reserve( ne );
     complex_type val{ 0 };
     v.reserve( ne );
-    for ( unsigned i{ 0 }; i < ne; ++i )
+    for ( std::size_t i{ 0 }; i < ne; ++i )
     {
       switch ( get_type() )
       {
@@ -587,7 +587,7 @@ namespace GC_namespace
   void GenericContainer::copyto_vec_string( vec_string_type & v, string_view const where ) const
   {
     v.clear();
-    unsigned const ne{ get_num_elements() };
+    std::size_t const ne{ get_num_elements() };
     switch ( get_type() )
     {
       case GC_type::STRING:
@@ -600,7 +600,7 @@ namespace GC_namespace
         break;
       case GC_type::VECTOR:
         v.reserve( ne );
-        for ( unsigned i{ 0 }; i < ne; ++i )
+        for ( std::size_t i{ 0 }; i < ne; ++i )
         {
           GenericContainer const & gc = get_gc_at( i, where );
           v.emplace_back( gc.get_string( where ) );
@@ -657,14 +657,14 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         vec_bool_type const * v_b{ &_v_b() };
-        m.resize( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        m.resize( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         vec_int_type const * v_i{ &_v_i() };
-        m.resize( static_cast<unsigned>( v_i->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_i->size() ), 1 );
         std::copy_n( v_i->data(), v_i->size(), m.data() );
       }
       break;
@@ -678,10 +678,10 @@ namespace GC_namespace
       case GC_type::VECTOR:
       {
         vector_type const & v{ _v() };
-        if ( auto nc{ static_cast<unsigned>( v.size() ) }; nc > 0 )
+        if ( auto nc{ static_cast<std::size_t>( v.size() ) }; nc > 0 )
         {
           auto nr{ v[0].get_num_elements() };
-          for ( unsigned j{ 1 }; j < nc; ++j )
+          for ( std::size_t j{ 1 }; j < nc; ++j )
           {
             GC_ASSERT(
               v[j].get_num_elements() == nr,
@@ -689,11 +689,11 @@ namespace GC_namespace
                     << " to a column of mat_int_type of size " << nr << " x " << nc )
           }
           m.resize( nr, nc );
-          for ( unsigned j{ 0 }; j < nc; ++j )
+          for ( std::size_t j{ 0 }; j < nc; ++j )
           {
             vec_int_type vj;
             v[j].copyto_vec_int( vj, where );
-            for ( unsigned i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
+            for ( std::size_t i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
           }
           break;  // finito esco.
         }
@@ -751,21 +751,21 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         vec_bool_type const * v_b{ &_v_b() };
-        m.resize( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        m.resize( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         vec_int_type const * v_i{ &_v_i() };
-        m.resize( static_cast<unsigned>( v_i->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_i->size() ), 1 );
         std::copy_n( v_i->data(), v_i->size(), m.data() );
       }
       break;
       case GC_type::VEC_LONG:
       {
         vec_long_type const * v_l{ &_v_l() };
-        m.resize( static_cast<unsigned>( v_l->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_l->size() ), 1 );
         std::copy_n( v_l->data(), v_l->size(), m.data() );
       }
       break;
@@ -786,10 +786,10 @@ namespace GC_namespace
       case GC_type::VECTOR:
       {
         vector_type const & v{ _v() };
-        if ( auto nc{ static_cast<unsigned>( v.size() ) }; nc > 0 )
+        if ( auto nc{ static_cast<std::size_t>( v.size() ) }; nc > 0 )
         {
-          unsigned nr{ v[0].get_num_elements() };
-          for ( unsigned j{ 1 }; j < nc; ++j )
+          std::size_t nr{ v[0].get_num_elements() };
+          for ( std::size_t j{ 1 }; j < nc; ++j )
           {
             GC_ASSERT(
               v[j].get_num_elements() == nr,
@@ -797,11 +797,11 @@ namespace GC_namespace
                     << " to a column of mat_long_type of size " << nr << " x " << nc )
           }
           m.resize( nr, nc );
-          for ( unsigned j{ 0 }; j < nc; ++j )
+          for ( std::size_t j{ 0 }; j < nc; ++j )
           {
             vec_long_type vj;
             v[j].copyto_vec_long( vj, where );
-            for ( unsigned i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
+            for ( std::size_t i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
           }
           break;  // finito esco.
         }
@@ -862,28 +862,28 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         vec_bool_type const * v_b{ &_v_b() };
-        m.resize( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        m.resize( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         vec_int_type const * v_i{ &_v_i() };
-        m.resize( static_cast<unsigned>( v_i->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_i->size() ), 1 );
         std::copy_n( v_i->data(), v_i->size(), m.data() );
       }
       break;
       case GC_type::VEC_LONG:
       {
         vec_long_type const * v_l{ &_v_l() };
-        m.resize( static_cast<unsigned>( v_l->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_l->size() ), 1 );
         std::copy_n( v_l->data(), v_l->size(), m.data() );
       }
       break;
       case GC_type::VEC_REAL:
       {
         vec_real_type const * v_r{ &_v_r() };
-        m.resize( static_cast<unsigned>( v_r->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_r->size() ), 1 );
         std::copy_n( v_r->data(), v_r->size(), m.data() );
       }
       break;
@@ -911,10 +911,10 @@ namespace GC_namespace
       case GC_type::VECTOR:
       {
         vector_type const & v{ _v() };
-        if ( auto nc{ static_cast<unsigned>( v.size() ) }; nc > 0 )
+        if ( auto nc{ static_cast<std::size_t>( v.size() ) }; nc > 0 )
         {
           auto nr{ v[0].get_num_elements() };
-          for ( unsigned j{ 1 }; j < nc; ++j )
+          for ( std::size_t j{ 1 }; j < nc; ++j )
           {
             GC_ASSERT(
               v[j].get_num_elements() == nr,
@@ -922,11 +922,11 @@ namespace GC_namespace
                     << " to a column of mat_real_type of size " << nr << " x " << nc )
           }
           m.resize( nr, nc );
-          for ( unsigned j{ 0 }; j < nc; ++j )
+          for ( std::size_t j{ 0 }; j < nc; ++j )
           {
             vec_real_type vj;
             v[j].copyto_vec_real( vj, where );
-            for ( unsigned i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
+            for ( std::size_t i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
           }
           break;  // finito esco.
         }
@@ -990,35 +990,35 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         vec_bool_type const * v_b{ &_v_b() };
-        m.resize( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        m.resize( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) m( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         vec_int_type const * v_i{ &_v_i() };
-        m.resize( static_cast<unsigned>( v_i->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_i->size() ), 1 );
         std::copy_n( v_i->data(), v_i->size(), m.data() );
       }
       break;
       case GC_type::VEC_LONG:
       {
         vec_long_type const * v_l{ &_v_l() };
-        m.resize( static_cast<unsigned>( v_l->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_l->size() ), 1 );
         std::copy_n( v_l->data(), v_l->size(), m.data() );
       }
       break;
       case GC_type::VEC_REAL:
       {
         vec_real_type const * v_r{ &_v_r() };
-        m.resize( static_cast<unsigned>( v_r->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_r->size() ), 1 );
         std::copy_n( v_r->data(), v_r->size(), m.data() );
       }
       break;
       case GC_type::VEC_COMPLEX:
       {
         vec_complex_type const * v_c{ &_v_c() };
-        m.resize( static_cast<unsigned>( v_c->size() ), 1 );
+        m.resize( static_cast<std::size_t>( v_c->size() ), 1 );
         std::copy_n( v_c->data(), v_c->size(), m.data() );
       }
       break;
@@ -1053,10 +1053,10 @@ namespace GC_namespace
       case GC_type::VECTOR:
       {
         vector_type const & v{ _v() };
-        if ( auto nc{ static_cast<unsigned>( v.size() ) }; nc > 0 )
+        if ( auto nc{ static_cast<std::size_t>( v.size() ) }; nc > 0 )
         {
           auto nr{ v[0].get_num_elements() };
-          for ( unsigned j{ 1 }; j < nc; ++j )
+          for ( std::size_t j{ 1 }; j < nc; ++j )
           {
             GC_ASSERT(
               v[j].get_num_elements() == nr,
@@ -1064,11 +1064,11 @@ namespace GC_namespace
                     << " to a column of mat_complex_type of size " << nr << " x " << nc )
           }
           m.resize( nr, nc );
-          for ( unsigned j{ 0 }; j < nc; ++j )
+          for ( std::size_t j{ 0 }; j < nc; ++j )
           {
             vec_complex_type vj;
             v[j].copyto_vec_complex( vj, where );
-            for ( unsigned i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
+            for ( std::size_t i{ 0 }; i < nr; ++i ) m( i, j ) = vj[i];
           }
           break;  // finito esco.
         }
@@ -1237,7 +1237,7 @@ namespace GC_namespace
       {
         auto const v_b{ take_box<vec_bool_type>() };
         set_vec_int( v_b->size() );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _v_i()[i] = ( ( *v_b )[i] ? 1 : 0 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _v_i()[i] = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER: break;
@@ -1296,14 +1296,14 @@ namespace GC_namespace
       {
         auto const v_b{ take_box<vec_bool_type>() };
         set_vec_long( v_b->size() );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _v_l()[i] = ( ( *v_b )[i] ? 1 : 0 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _v_l()[i] = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
         set_vec_long( v_i->size() );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i ) _v_l()[i] = static_cast<int_type>( ( *v_i )[i] );
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i ) _v_l()[i] = static_cast<int_type>( ( *v_i )[i] );
       }
       break;
       case GC_type::VEC_LONG:  // nothing to do
@@ -1369,21 +1369,21 @@ namespace GC_namespace
       {
         auto const v_b{ take_box<vec_bool_type>() };
         set_vec_real( v_b->size() );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _v_r()[i] = ( ( *v_b )[i] ? 1 : 0 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _v_r()[i] = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
         set_vec_real( v_i->size() );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i ) _v_r()[i] = static_cast<real_type>( ( *v_i )[i] );
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i ) _v_r()[i] = static_cast<real_type>( ( *v_i )[i] );
       }
       break;
       case GC_type::VEC_LONG:
       {
         auto const v_l{ take_box<vec_long_type>() };
         set_vec_real( v_l->size() );
-        for ( unsigned i{ 0 }; i < v_l->size(); ++i ) _v_r()[i] = static_cast<real_type>( ( *v_l )[i] );
+        for ( std::size_t i{ 0 }; i < v_l->size(); ++i ) _v_r()[i] = static_cast<real_type>( ( *v_l )[i] );
       }
       break;
       case GC_type::VEC_REAL: break;
@@ -1452,14 +1452,14 @@ namespace GC_namespace
       {
         auto const v_b{ take_box<vec_bool_type>() };
         set_vec_complex( v_b->size() );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _v_c()[i] = complex_type( ( *v_b )[i] ? 1 : 0, 0 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _v_c()[i] = complex_type( ( *v_b )[i] ? 1 : 0, 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
         set_vec_complex( v_i->size() );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i )
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i )
           _v_c()[i] = complex_type( static_cast<real_type>( ( *v_i )[i] ), 0 );
       }
       break;
@@ -1467,7 +1467,7 @@ namespace GC_namespace
       {
         auto const v_l{ take_box<vec_long_type>() };
         set_vec_complex( v_l->size() );
-        for ( unsigned i{ 0 }; i < v_l->size(); ++i )
+        for ( std::size_t i{ 0 }; i < v_l->size(); ++i )
           _v_c()[i] = complex_type( static_cast<real_type>( ( *v_l )[i] ), 0 );
       }
       break;
@@ -1475,7 +1475,7 @@ namespace GC_namespace
       {
         auto const v_r{ take_box<vec_real_type>() };
         set_vec_complex( v_r->size() );
-        for ( unsigned i{ 0 }; i < v_r->size(); ++i ) _v_c()[i] = complex_type( ( *v_r )[i], 0 );
+        for ( std::size_t i{ 0 }; i < v_r->size(); ++i ) _v_c()[i] = complex_type( ( *v_r )[i], 0 );
       }
       break;
       case GC_type::VEC_COMPLEX: break;
@@ -1521,15 +1521,15 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         auto const v_b{ take_box<vec_bool_type>() };
-        set_mat_int( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _m_i()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        set_mat_int( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _m_i()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
-        set_mat_int( static_cast<unsigned>( v_i->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i ) _m_i()( i, 0 ) = ( *v_i )[i];
+        set_mat_int( static_cast<std::size_t>( v_i->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i ) _m_i()( i, 0 ) = ( *v_i )[i];
       }
       break;
       case GC_type::MAT_INTEGER: break;
@@ -1579,29 +1579,29 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         auto const v_b{ take_box<vec_bool_type>() };
-        set_mat_long( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _m_l()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        set_mat_long( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _m_l()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
-        set_mat_long( static_cast<unsigned>( v_i->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i ) _m_l()( i, 0 ) = static_cast<long_type>( ( *v_i )[i] );
+        set_mat_long( static_cast<std::size_t>( v_i->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i ) _m_l()( i, 0 ) = static_cast<long_type>( ( *v_i )[i] );
       }
       break;
       case GC_type::VEC_LONG:
       {
         auto const v_l{ take_box<vec_long_type>() };
-        set_mat_long( static_cast<unsigned>( v_l->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_l->size(); ++i ) _m_l()( i, 0 ) = ( *v_l )[i];
+        set_mat_long( static_cast<std::size_t>( v_l->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_l->size(); ++i ) _m_l()( i, 0 ) = ( *v_l )[i];
       }
       break;
       case GC_type::MAT_INTEGER:
       {
         auto const m_i{ take_box<mat_int_type>() };
         set_mat_long( m_i->num_rows(), m_i->num_cols() );
-        for ( unsigned i{ 0 }; i < m_i->size(); ++i ) _m_l()[i] = static_cast<long_type>( ( *m_i )[i] );
+        for ( std::size_t i{ 0 }; i < m_i->size(); ++i ) _m_l()[i] = static_cast<long_type>( ( *m_i )[i] );
       }
       break;
       case GC_type::MAT_LONG: break;
@@ -1657,43 +1657,43 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         auto const v_b{ take_box<vec_bool_type>() };
-        set_mat_real( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _m_r()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        set_mat_real( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _m_r()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
-        set_mat_real( static_cast<unsigned>( v_i->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i ) _m_r()( i, 0 ) = static_cast<real_type>( ( *v_i )[i] );
+        set_mat_real( static_cast<std::size_t>( v_i->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i ) _m_r()( i, 0 ) = static_cast<real_type>( ( *v_i )[i] );
       }
       break;
       case GC_type::VEC_LONG:
       {
         auto const v_l{ take_box<vec_long_type>() };
-        set_mat_real( static_cast<unsigned>( v_l->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_l->size(); ++i ) _m_r()( i, 0 ) = static_cast<real_type>( ( *v_l )[i] );
+        set_mat_real( static_cast<std::size_t>( v_l->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_l->size(); ++i ) _m_r()( i, 0 ) = static_cast<real_type>( ( *v_l )[i] );
       }
       break;
       case GC_type::VEC_REAL:
       {
         auto const v_r{ take_box<vec_real_type>() };
-        set_mat_real( static_cast<unsigned>( v_r->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_r->size(); ++i ) _m_r()( i, 0 ) = ( *v_r )[i];
+        set_mat_real( static_cast<std::size_t>( v_r->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_r->size(); ++i ) _m_r()( i, 0 ) = ( *v_r )[i];
       }
       break;
       case GC_type::MAT_INTEGER:
       {
         auto const m_i{ take_box<mat_int_type>() };
         set_mat_real( m_i->num_rows(), m_i->num_cols() );
-        for ( unsigned i{ 0 }; i < m_i->size(); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_i )[i] );
+        for ( std::size_t i{ 0 }; i < m_i->size(); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_i )[i] );
       }
       break;
       case GC_type::MAT_LONG:
       {
         auto const m_l{ take_box<mat_long_type>() };
         set_mat_real( m_l->num_rows(), m_l->num_cols() );
-        for ( unsigned i{ 0 }; i < m_l->size(); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_l )[i] );
+        for ( std::size_t i{ 0 }; i < m_l->size(); ++i ) _m_r()[i] = static_cast<real_type>( ( *m_l )[i] );
       }
       break;
       case GC_type::MAT_REAL: break;
@@ -1753,36 +1753,36 @@ namespace GC_namespace
       case GC_type::VEC_BOOL:
       {
         auto const v_b{ take_box<vec_bool_type>() };
-        set_mat_complex( static_cast<unsigned>( v_b->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _m_c()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
+        set_mat_complex( static_cast<std::size_t>( v_b->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _m_c()( i, 0 ) = ( ( *v_b )[i] ? 1 : 0 );
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
-        set_mat_complex( static_cast<unsigned>( v_i->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i ) _m_c()( i, 0 ) = static_cast<real_type>( ( *v_i )[i] );
+        set_mat_complex( static_cast<std::size_t>( v_i->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i ) _m_c()( i, 0 ) = static_cast<real_type>( ( *v_i )[i] );
       }
       break;
       case GC_type::VEC_LONG:
       {
         auto const v_l{ take_box<vec_long_type>() };
-        set_mat_complex( static_cast<unsigned>( v_l->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_l->size(); ++i ) _m_c()( i, 0 ) = static_cast<real_type>( ( *v_l )[i] );
+        set_mat_complex( static_cast<std::size_t>( v_l->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_l->size(); ++i ) _m_c()( i, 0 ) = static_cast<real_type>( ( *v_l )[i] );
       }
       break;
       case GC_type::VEC_REAL:
       {
         auto const v_r{ take_box<vec_real_type>() };
-        set_mat_complex( static_cast<unsigned>( v_r->size() ), 1 );
-        for ( unsigned i{ 0 }; i < v_r->size(); ++i ) _m_c()( i, 0 ) = ( *v_r )[i];
+        set_mat_complex( static_cast<std::size_t>( v_r->size() ), 1 );
+        for ( std::size_t i{ 0 }; i < v_r->size(); ++i ) _m_c()( i, 0 ) = ( *v_r )[i];
       }
       break;
       case GC_type::MAT_INTEGER:
       {
         auto const m_i{ take_box<mat_int_type>() };
         set_mat_complex( m_i->num_rows(), m_i->num_cols() );
-        for ( unsigned i{ 0 }; i < m_i->size(); ++i )
+        for ( std::size_t i{ 0 }; i < m_i->size(); ++i )
           _m_c()[i] = complex_type( static_cast<real_type>( ( *m_i )[i] ), 0 );
       }
       break;
@@ -1790,7 +1790,7 @@ namespace GC_namespace
       {
         auto const m_l{ take_box<mat_long_type>() };
         set_mat_complex( m_l->num_rows(), m_l->num_cols() );
-        for ( unsigned i{ 0 }; i < m_l->size(); ++i )
+        for ( std::size_t i{ 0 }; i < m_l->size(); ++i )
           _m_c()[i] = complex_type( static_cast<real_type>( ( *m_l )[i] ), 0 );
       }
       break;
@@ -1798,7 +1798,7 @@ namespace GC_namespace
       {
         auto const m_r{ take_box<mat_real_type>() };
         set_mat_complex( m_r->num_rows(), m_r->num_cols() );
-        for ( unsigned i{ 0 }; i < m_r->size(); ++i ) _m_c()[i] = complex_type( ( *m_r )[i], 0 );
+        for ( std::size_t i{ 0 }; i < m_r->size(); ++i ) _m_c()[i] = complex_type( ( *m_r )[i], 0 );
       }
       break;
       case GC_type::MAT_COMPLEX: break;
@@ -1877,50 +1877,50 @@ namespace GC_namespace
       case GC_type::VEC_POINTER:
       {
         auto const v_p{ take_box<vec_pointer_type>() };
-        set_vector( static_cast<unsigned>( v_p->size() ) );
-        for ( unsigned i{ 0 }; i < v_p->size(); ++i ) _v()[i] = ( *v_p )[i];
+        set_vector( static_cast<std::size_t>( v_p->size() ) );
+        for ( std::size_t i{ 0 }; i < v_p->size(); ++i ) _v()[i] = ( *v_p )[i];
       }
       break;
       case GC_type::VEC_BOOL:
       {
         auto const v_b{ take_box<vec_bool_type>() };
-        set_vector( static_cast<unsigned>( v_b->size() ) );
-        for ( unsigned i{ 0 }; i < v_b->size(); ++i ) _v()[i] = ( *v_b )[i];
+        set_vector( static_cast<std::size_t>( v_b->size() ) );
+        for ( std::size_t i{ 0 }; i < v_b->size(); ++i ) _v()[i] = ( *v_b )[i];
       }
       break;
       case GC_type::VEC_INTEGER:
       {
         auto const v_i{ take_box<vec_int_type>() };
-        set_vector( static_cast<unsigned>( v_i->size() ) );
-        for ( unsigned i{ 0 }; i < v_i->size(); ++i ) _v()[i] = ( *v_i )[i];
+        set_vector( static_cast<std::size_t>( v_i->size() ) );
+        for ( std::size_t i{ 0 }; i < v_i->size(); ++i ) _v()[i] = ( *v_i )[i];
       }
       break;
       case GC_type::VEC_LONG:
       {
         auto const v_l{ take_box<vec_long_type>() };
-        set_vector( static_cast<unsigned>( v_l->size() ) );
-        for ( unsigned i{ 0 }; i < v_l->size(); ++i ) _v()[i] = ( *v_l )[i];
+        set_vector( static_cast<std::size_t>( v_l->size() ) );
+        for ( std::size_t i{ 0 }; i < v_l->size(); ++i ) _v()[i] = ( *v_l )[i];
       }
       break;
       case GC_type::VEC_REAL:
       {
         auto const v_r{ take_box<vec_real_type>() };
-        set_vector( static_cast<unsigned>( v_r->size() ) );
-        for ( unsigned i{ 0 }; i < v_r->size(); ++i ) _v()[i] = ( *v_r )[i];
+        set_vector( static_cast<std::size_t>( v_r->size() ) );
+        for ( std::size_t i{ 0 }; i < v_r->size(); ++i ) _v()[i] = ( *v_r )[i];
       }
       break;
       case GC_type::VEC_COMPLEX:
       {
         auto const v_c{ take_box<vec_complex_type>() };
-        set_vector( static_cast<unsigned>( v_c->size() ) );
-        for ( unsigned i{ 0 }; i < v_c->size(); ++i ) _v()[i] = ( *v_c )[i];
+        set_vector( static_cast<std::size_t>( v_c->size() ) );
+        for ( std::size_t i{ 0 }; i < v_c->size(); ++i ) _v()[i] = ( *v_c )[i];
       }
       break;
       case GC_type::VEC_STRING:
       {
         auto const v_s{ take_box<vec_string_type>() };
-        set_vector( static_cast<unsigned>( v_s->size() ) );
-        for ( unsigned i{ 0 }; i < v_s->size(); ++i ) _v()[i] = ( *v_s )[i];
+        set_vector( static_cast<std::size_t>( v_s->size() ) );
+        for ( std::size_t i{ 0 }; i < v_s->size(); ++i ) _v()[i] = ( *v_s )[i];
       }
       break;
       case GC_type::VECTOR: break;
