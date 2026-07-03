@@ -2,10 +2,15 @@
 #                                                                          #
 #  GenericContainer -- modern, idiomatic CMake build.                     #
 #                                                                          #
-#  This build covers the core library (src/, include/) and its Catch2     #
-#  test battery (tests/) only. The format-backend interfaces under        #
-#  src_*_interface/ (yaml, json, toml, lua, matlab) and the examples/     #
-#  tree are not part of this build for now; they need their own          #
+#  Covers the core library (src/, include/), its Catch2 test battery      #
+#  (tests/), and the yaml/toml/lua format-backend interfaces, each built  #
+#  as a separate opt-in library (GenericContainer::Yaml/Toml/Lua) rather  #
+#  than linked into the core, so the core stays self-contained and        #
+#  standalone-linkable regardless of which backends a consumer needs.     #
+#  JSON is covered by the header-only nlohmann::json adapter (see         #
+#  include/GenericContainer/GenericContainerInterface_nlohmann.hh)        #
+#  instead of a dedicated backend. src_matlab_interface/ and examples/    #
+#  are not part of this build for now; they need their own                #
 #  restructuring pass before rejoining it.                                #
 #                                                                          #
 ############################################################################
@@ -32,6 +37,12 @@ endif()
 # and installing shouldn't be forced on a project that FetchContent's us.
 option( BUILD_SHARED_LIBS "Build GenericContainer as a shared library" OFF )
 option( GENERIC_CONTAINER_INSTALL "Generate the install target" ${PROJECT_IS_TOP_LEVEL} )
+
+# Each format backend is its own opt-in library; turn one off to skip
+# fetching/building its (sole) third-party dependency entirely.
+option( GENERIC_CONTAINER_ENABLE_YAML "Build GenericContainer::Yaml (fkYAML-backed)" ON )
+option( GENERIC_CONTAINER_ENABLE_TOML "Build GenericContainer::Toml (toml++-backed)" ON )
+option( GENERIC_CONTAINER_ENABLE_LUA  "Build GenericContainer::Lua (embeds Lua 5.4)"  ON )
 
 include( GNUInstallDirs )
 include( FetchContent )
@@ -100,6 +111,24 @@ set_target_properties(
 
 if ( CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU" )
   target_compile_options( GenericContainer PRIVATE -Wall -Wextra )
+endif()
+
+#   ____             _                  _
+#  | __ )  __ _  ___| | _____ _ __   __| |___
+#  |  _ \ / _` |/ __| |/ / _ \ '_ \ / _` / __|
+#  | |_) | (_| | (__|   <  __/ | | | (_| \__ \
+#  |____/ \__,_|\___|_|\_\___|_| |_|\__,_|___/
+#
+# Optional format-backend libraries, each fetching its own single
+# dependency; not installed/exported yet (only the core library is).
+if ( GENERIC_CONTAINER_ENABLE_YAML )
+  add_subdirectory( src_yaml_interface )
+endif()
+if ( GENERIC_CONTAINER_ENABLE_TOML )
+  add_subdirectory( src_toml_interface )
+endif()
+if ( GENERIC_CONTAINER_ENABLE_LUA )
+  add_subdirectory( src_lua_interface )
 endif()
 
 #   _____         _

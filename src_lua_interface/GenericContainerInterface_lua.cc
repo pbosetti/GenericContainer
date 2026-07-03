@@ -67,7 +67,7 @@
 #ifdef USE_SYSTEM_LUA
 #include <lua.hpp>
 #else
-#include "lua-5.4.6/src/lua.hpp"
+#include "lua.hpp"
 #endif
 
 // load string.h for strlen
