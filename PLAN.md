@@ -1,5 +1,12 @@
 # GenericContainer Core: C++20 Modernization, Bug Fixes & Catch2 Test Battery
 
+> **STATUS: COMPLETED** (July 2026). All six phases landed on `develop`:
+> C++20 flip -> characterization battery (1679 assertions, zero skips) ->
+> variant/Box storage rewrite -> Eigen matrices + size_t + checked narrowing ->
+> API polish (GenericError, operator==, span, concepts, fork removal) ->
+> serialization hardening + sanitizer CI. All 11 recorded bugs fixed and
+> covered by regressions; wire format byte-identical (golden pin).
+
 ## Context
 
 The core of GenericContainer (~14k lines: `GenericContainer.hh` 5071 + `GenericContainer.cc` 3760 + Promote/Serialize/Support/Tables/Collapse) is a pre-C++17 design: a raw tagged union (`DataStorage`, 21 type tags) with manual `new`/`delete`, ~15 duplicated 21-case switches, and `unsigned` sizes everywhere. Code review found real memory-safety bugs (below). Goal: fix the bugs, rewrite storage on `std::variant` + RAII, modernize the API to C++20, and build a complete Catch2 v3 unit-test battery.

@@ -299,9 +299,10 @@ if ( UTILS_ENABLE_TESTS AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR )
   set( EXELISTBIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin" )
   set( EXELISTCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_tests" )
 
+  # test_all was the historical hand-rolled suite; its assertions are subsumed
+  # by the Catch2 battery in tests/ and it is no longer registered with CTest.
   set(
     EXELISTCPP
-    test_all
     example01 example02 example03 example04 example05
     example07 example08 example09 example10 example11
     example12 example13 example14 example15 example16

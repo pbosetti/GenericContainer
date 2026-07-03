@@ -5,6 +5,26 @@
 `GenericContainer` is a `C++` class with permit to store eterogeneous
 data:
 
+> **Note (2026 modernization).** The core has been rewritten for C++20 with a
+> focus on memory safety. Breaking changes for downstream users:
+>
+> - **C++20 is required** (was C++17).
+> - Storage is a `std::variant` with deep-copying boxes instead of a tagged
+>   union; copy assignment is now safe for self-assignment and aliasing.
+> - **Matrices are Eigen**: `mat_type<T>` derives from
+>   `Eigen::Matrix<T, Dynamic, Dynamic>` (column-major, as before), so stored
+>   matrices can be used directly in Eigen expressions. Eigen 3.4 is a public
+>   dependency, fetched automatically by CMake.
+> - Size types are `std::size_t` instead of `unsigned` throughout the API.
+> - Numeric conversions are range-checked and throw `GenericError`
+>   (derived from `std::runtime_error`) instead of silently truncating.
+> - Deep structural `operator==` is available; `std::span` overloads exist
+>   for `serialize`/`de_serialize`.
+> - Deprecated camelCase methods (`readFormattedData`, `numRows`, ...) have
+>   been removed; use the snake_case equivalents.
+> - The C ABI (`GenericContainerInterface_C.h`) and the FFI wrapper are
+>   unchanged.
+
 
 - [Online documentation](http://ebertolazzi.github.io/GenericContainer)
 
