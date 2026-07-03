@@ -70,7 +70,14 @@ if ( NOT TARGET Eigen3::Eigen )
     SOURCE_SUBDIR cmake
   )
   FetchContent_MakeAvailable( eigen3 )
-  add_library( Eigen3::Eigen INTERFACE IMPORTED )
+  # GLOBAL: without it, this IMPORTED target is only visible inside this
+  # directory and its subdirectories, not to a parent project that
+  # FetchContent's GenericContainer -- such a consumer could then not
+  # target_link_libraries(... Eigen3::Eigen) directly (even though the
+  # include path still reaches them transitively through GenericContainer's
+  # own PUBLIC link to it). A real find_package() hit doesn't have this
+  # problem, since installed packages register globally visible targets.
+  add_library( Eigen3::Eigen INTERFACE IMPORTED GLOBAL )
   target_include_directories( Eigen3::Eigen SYSTEM INTERFACE "${eigen3_SOURCE_DIR}" )
 endif()
 
