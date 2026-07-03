@@ -125,6 +125,8 @@ cmake --install build --prefix /path/to/prefix  # install
 cmake --build build --target package            # cpack: .tar.gz / .zip
 ```
 
+> **NOTE**: the `build.sh` and `build.ps1` scripts provide easier single command builds for the lazy 🫣.
+
 Useful configure-time options:
 
 | Option | Default | Effect |
