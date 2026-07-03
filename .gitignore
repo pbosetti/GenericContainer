@@ -10,6 +10,7 @@
 /libs/*.dll
 /DerivedData
 /CMakeFiles
+/products
 
 # Compiled source #
 ###################
