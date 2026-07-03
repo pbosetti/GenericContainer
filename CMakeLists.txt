@@ -25,6 +25,7 @@ include( FetchContent )
 if ( POLICY CMP0135 )
   cmake_policy( SET CMP0135 NEW )
 endif()
+cmake_policy( SET CMP0169 OLD ) # FetchContent_MakeAvailable() does not honor CMAKE_POLICY_DEFAULT_CMP0169
 FetchContent_Declare(
   cmake_utils
   GIT_REPOSITORY https://github.com/ebertolazzi/cmake_utils.git
