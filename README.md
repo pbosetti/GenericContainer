@@ -31,6 +31,7 @@ std::cout << gc["readings"].get_real_at( 1 ) << "\n"; // 2.75
   - [Building](#building)
   - [Using it from your own CMake project](#using-it-from-your-own-cmake-project)
     - [Option A — `FetchContent`](#option-a--fetchcontent)
+    - [If other subprojects also fetch GenericContainer](#if-other-subprojects-also-fetch-genericcontainer)
     - [Option B — an installed package](#option-b--an-installed-package)
   - [Supported types](#supported-types)
   - [JSON — `nlohmann::json`](#json--nlohmannjson)
@@ -111,11 +112,14 @@ See [`examples/`](examples/) for complete, compilable programs.
 ## Building
 
 Requires **CMake ≥ 3.25** and a **C++20** compiler (Clang, GCC, or MSVC).
-Dependencies ([Eigen](https://eigen.tuxfamily.org), and — if
-enabled — [toml++](https://github.com/marzer/tomlplusplus),
-[fkYAML](https://github.com/fktn-k/fkYAML), [Lua](https://www.lua.org))
-are fetched automatically via `FetchContent`, preferring an
-already-installed package when one is found.
+All dependencies are fetched automatically via `FetchContent`:
+[Eigen](https://eigen.tuxfamily.org) 3.4.0 is always fetched fresh (pinned,
+for version consistency — it's never looked up as an installed package);
+[toml++](https://github.com/marzer/tomlplusplus) and
+[fkYAML](https://github.com/fktn-k/fkYAML) prefer an already-installed
+package and only fetch as a fallback; [Lua](https://www.lua.org) has no
+CMake package story upstream, so it's always built from the official
+source tarball.
 
 ```sh
 cmake -S . -B build                             # configure (Release by default)
@@ -163,6 +167,66 @@ target_link_libraries( my_app PRIVATE
   GenericContainer::GenericContainer
   GenericContainer::Toml   # only what you need; each is optional
 )
+```
+
+Eigen comes along for free — `GenericContainer` always fetches its own
+pinned copy and exposes it globally as `Eigen3::Eigen`. If your own code
+only touches Eigen types *through* `GenericContainer` (e.g. `mat_real_type`
+returned from a container), you don't need to reference Eigen at all: the
+include path already reaches you transitively through
+`GenericContainer::GenericContainer`'s public link. If you use Eigen
+directly in a target that doesn't otherwise depend on `GenericContainer`,
+link it explicitly:
+
+```cmake
+target_link_libraries( my_app PRIVATE Eigen3::Eigen )
+```
+
+(must come after `FetchContent_MakeAvailable( GenericContainer )`, which is
+what defines the target.)
+
+### If other subprojects also fetch GenericContainer
+
+`FetchContent` deduplicates by declared name: if your project pulls in
+other subprojects that *also* `FetchContent_Declare(GenericContainer ...)`
+(directly or transitively), it's fetched, configured, and built exactly
+once no matter how many times `FetchContent_MakeAvailable(GenericContainer)`
+is called — confirmed with a real three-level build (a top project plus two
+sub-libraries, each independently fetching `GenericContainer`). Eigen is
+deduplicated the same way, as a consequence: its own `FetchContent_Declare`
+call lives inside `GenericContainer`'s `CMakeLists.txt`, which only
+actually runs once.
+
+Two things worth knowing about this:
+
+- **It only works through `FetchContent`.** A subproject that instead
+  vendors `GenericContainer` via a plain
+  `add_subdirectory(path/to/GenericContainer)` bypasses the deduplication
+  bookkeeping entirely; adding a second copy anywhere in the tree hard-fails
+  configure with `add_library cannot create target "GenericContainer"
+  because another target with the same name already exists`.
+- **Version mismatches are resolved silently, with no warning.** If your
+  project and a subproject pin different `GIT_TAG`s, CMake uses whichever
+  `FetchContent_Declare` call it processes *first* in configure order and
+  silently discards the rest — the subproject that asked for a different
+  version gets no diagnostic at all, it just quietly builds against
+  whichever version won. Verified on CMake 4.2.1: pinning `develop` at the
+  top level and the years-old `1.0.0` tag in a subproject, the subproject
+  received `develop` with no indication anything was overridden.
+
+If subprojects might reasonably disagree on the version, declare
+`GenericContainer` in your own top-level `CMakeLists.txt` **before**
+`add_subdirectory`/`FetchContent`-ing anything that also depends on it —
+that makes your pin the one that deterministically wins, rather than
+leaving the outcome to directory-traversal order:
+
+```cmake
+# Top-level CMakeLists.txt, before any add_subdirectory()/FetchContent
+# call that might pull in something also depending on GenericContainer.
+FetchContent_Declare( GenericContainer GIT_REPOSITORY ... GIT_TAG ... )
+FetchContent_MakeAvailable( GenericContainer )
+
+add_subdirectory( third_party/some_lib_that_also_uses_GenericContainer )
 ```
 
 ### Option B — an installed package
