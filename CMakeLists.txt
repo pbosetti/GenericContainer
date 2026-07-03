@@ -61,25 +61,22 @@ include( FetchContent )
 # helper scripts but no project file) so FetchContent_MakeAvailable()
 # populates the sources without configuring Eigen's own (heavy, test- and
 # doc-oriented) build -- we only need its headers.
-find_package( Eigen3 3.4 QUIET NO_MODULE )
-if ( NOT TARGET Eigen3::Eigen )
-  message( STATUS "Eigen3 not found on the system: fetching Eigen 3.4.0" )
-  FetchContent_Declare(
-    eigen3
-    URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
-    SOURCE_SUBDIR cmake
-  )
-  FetchContent_MakeAvailable( eigen3 )
-  # GLOBAL: without it, this IMPORTED target is only visible inside this
-  # directory and its subdirectories, not to a parent project that
-  # FetchContent's GenericContainer -- such a consumer could then not
-  # target_link_libraries(... Eigen3::Eigen) directly (even though the
-  # include path still reaches them transitively through GenericContainer's
-  # own PUBLIC link to it). A real find_package() hit doesn't have this
-  # problem, since installed packages register globally visible targets.
-  add_library( Eigen3::Eigen INTERFACE IMPORTED GLOBAL )
-  target_include_directories( Eigen3::Eigen SYSTEM INTERFACE "${eigen3_SOURCE_DIR}" )
-endif()
+message( STATUS "Fetching Eigen 3.4.0" )
+FetchContent_Declare(
+  eigen3
+  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+  SOURCE_SUBDIR cmake
+)
+FetchContent_MakeAvailable( eigen3 )
+# GLOBAL: without it, this IMPORTED target is only visible inside this
+# directory and its subdirectories, not to a parent project that
+# FetchContent's GenericContainer -- such a consumer could then not
+# target_link_libraries(... Eigen3::Eigen) directly (even though the
+# include path still reaches them transitively through GenericContainer's
+# own PUBLIC link to it). A real find_package() hit doesn't have this
+# problem, since installed packages register globally visible targets.
+add_library( Eigen3::Eigen INTERFACE IMPORTED GLOBAL )
+target_include_directories( Eigen3::Eigen SYSTEM INTERFACE "${eigen3_SOURCE_DIR}" )
 
 #   _     _ _
 #  | |   (_) |__  _ __ __ _ _ __ _   _
