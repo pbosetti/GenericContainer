@@ -28,9 +28,6 @@
 #include "GenericContainer/GenericContainer_ffi.h"
 #include "GenericContainer/GenericContainer.hh"
 
-#include <cstdlib>
-#include <cstring>
-#include <sstream>
 #include <string>
 
 using GC_namespace::GenericContainer;
@@ -91,86 +88,6 @@ gc_free( gc_handle_t h )
 {
   clear_error();
   delete as_gc( h );
-}
-
-// -----------------------------------------------------------------------------
-//  JSON bridge
-// -----------------------------------------------------------------------------
-
-// GenericContainer::from_json/to_json are implemented in
-// src_json_interface/, which is not part of this build yet (see the
-// top-level CMakeLists.txt header comment). Calling through to them
-// unconditionally would leave this object with an unresolved external
-// reference, which a shared-library build must resolve at link time.
-// Revert gc_from_json/gc_to_json to the commented-out bodies below once
-// that backend is back in the build.
-
-int
-gc_from_json( gc_handle_t h, char const * json_text )
-{
-  clear_error();
-  if ( !h ) { set_error( "gc_from_json: null handle" ); return 1; }
-  if ( !json_text ) { set_error( "gc_from_json: null json_text" ); return 1; }
-  set_error( "gc_from_json: JSON support is not built into this library" );
-  return 1;
-#if 0
-  try
-  {
-    std::istringstream stream( json_text );
-    if ( as_gc( h )->from_json( stream ) ) return 0;
-    set_error( "gc_from_json: JSON parse error" );
-  }
-  catch ( std::exception const & e )
-  {
-    set_error( e.what() );
-  }
-  catch ( ... )
-  {
-    set_error( "gc_from_json: unknown error" );
-  }
-  return 1;
-#endif
-}
-
-char *
-gc_to_json( gc_handle_t h )
-{
-  clear_error();
-  if ( !h ) { set_error( "gc_to_json: null handle" ); return nullptr; }
-  set_error( "gc_to_json: JSON support is not built into this library" );
-  return nullptr;
-#if 0
-  try
-  {
-    std::ostringstream stream;
-    as_gc( h )->to_json( stream );
-    std::string const s{ stream.str() };
-    char * out{ static_cast<char *>( std::malloc( s.size() + 1 ) ) };
-    if ( !out )
-    {
-      set_error( "gc_to_json: out of memory" );
-      return nullptr;
-    }
-    std::memcpy( out, s.data(), s.size() );
-    out[s.size()] = '\0';
-    return out;
-  }
-  catch ( std::exception const & e )
-  {
-    set_error( e.what() );
-  }
-  catch ( ... )
-  {
-    set_error( "gc_to_json: unknown error" );
-  }
-  return nullptr;
-#endif
-}
-
-void
-gc_free_string( char * s )
-{
-  std::free( s );
 }
 
 // -----------------------------------------------------------------------------

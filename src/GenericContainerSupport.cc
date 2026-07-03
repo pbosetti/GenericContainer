@@ -49,19 +49,29 @@ namespace GC_namespace
     auto ends_with = []( string_view str, string_view suffix ) -> bool
     { return str.size() >= suffix.size() && str.compare( str.size() - suffix.size(), suffix.size(), suffix ) == 0; };
 
-    // from_yaml/from_json/from_toml are implemented in src_yaml_interface/
-    // src_json_interface/src_toml_interface, which are not part of this
-    // build yet (see the top-level CMakeLists.txt header comment); calling
-    // through to them unconditionally, even in a dead branch, would leave
-    // the compiled object with an unresolved external reference, which a
-    // shared-library build must resolve at link time. Revert this to the
-    // direct calls once those backends are back in the build.
-    if ( ends_with( file_name, ".yaml" ) || ends_with( file_name, ".yml" ) || ends_with( file_name, ".json" ) ||
-         ends_with( file_name, ".toml" ) )
+    // JSON support was dropped from the core library: nlohmann::json (via
+    // include/GenericContainer/GenericContainerInterface_nlohmann.hh) is the
+    // replacement for C++ callers -- j.get<GenericContainer>() / j = gc --
+    // but there's no FFI/file-dispatch equivalent, so a ".json" file is
+    // simply not handled here.
+    //
+    // from_yaml/from_toml ARE implemented, but as separate opt-in libraries
+    // (src_yaml_interface/, src_toml_interface/, built as GenericContainer::
+    // Yaml / GenericContainer::Toml -- see their CMakeLists.txt) rather than
+    // linked into this core library, precisely so the core stays a
+    // self-contained, standalone-linkable target (a shared build must
+    // resolve every symbol its object files reference at link time; calling
+    // through to a backend this library doesn't itself link would break
+    // that regardless of whether the branch is ever taken). Callers who
+    // need yaml/toml should link the relevant optional library and call
+    // gc.from_yaml()/gc.from_toml() directly instead of going through this
+    // extension-sniffing convenience dispatch.
+    if ( ends_with( file_name, ".yaml" ) || ends_with( file_name, ".yml" ) || ends_with( file_name, ".toml" ) )
     {
       file.close();
       throw GenericError(
-        "GenericContainer::from_file: format backends (yaml/json/toml) are not built into this library" );
+        "GenericContainer::from_file: yaml/toml support is not linked into this library; "
+        "link GenericContainer::Yaml or GenericContainer::Toml and call from_yaml()/from_toml() directly" );
     }
     file.close();
     return false;

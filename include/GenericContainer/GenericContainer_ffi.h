@@ -38,11 +38,6 @@
 //!
 //! Design:
 //!  - Lifecycle: gc_new() / gc_free().
-//!  - Nested/recursive data (vectors, maps, matrices, ...) is moved across
-//!    the boundary as JSON text via gc_from_json()/gc_to_json(): every
-//!    scripting language already has a native JSON encoder/decoder, so a
-//!    binding only needs to build a JSON string and hand it over, rather
-//!    than re-implementing tree navigation across the ABI.
 //!  - A handful of scalar get/set functions cover the common case where the
 //!    whole container is just one value.
 //!  - Every function that can fail clears the thread-local last-error
@@ -69,26 +64,6 @@ gc_handle_t gc_new( void );
 
 //! Destroy a `GenericContainer` created by gc_new(). NULL is a safe no-op.
 void gc_free( gc_handle_t h );
-
-// -----------------------------------------------------------------------------
-//  JSON bridge -- the primary way to move nested/recursive data
-// -----------------------------------------------------------------------------
-
-//!
-//! Parse `json_text` and replace the contents of `h` with it.
-//! \return 0 on success, non-zero on failure (see gc_last_error()).
-//!
-int gc_from_json( gc_handle_t h, char const * json_text );
-
-//!
-//! Serialize `h` to a JSON string.
-//! \return A heap-allocated, NUL-terminated string that the caller must
-//!         release with gc_free_string(), or NULL on failure.
-//!
-char * gc_to_json( gc_handle_t h );
-
-//! Release a string returned by gc_to_json().
-void gc_free_string( char * s );
 
 // -----------------------------------------------------------------------------
 //  Scalar convenience accessors
