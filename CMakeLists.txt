@@ -61,10 +61,10 @@ include( FetchContent )
 # helper scripts but no project file) so FetchContent_MakeAvailable()
 # populates the sources without configuring Eigen's own (heavy, test- and
 # doc-oriented) build -- we only need its headers.
-message( STATUS "Fetching Eigen 3.4.0" )
+message( STATUS "Fetching Eigen 5.0.0" )
 FetchContent_Declare(
   eigen3
-  URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+  URL https://gitlab.com/libeigen/eigen/-/archive/5.0.0/eigen-5.0.0.tar.gz
   SOURCE_SUBDIR cmake
 )
 FetchContent_MakeAvailable( eigen3 )
