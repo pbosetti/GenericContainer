@@ -97,12 +97,23 @@ gc_free( gc_handle_t h )
 //  JSON bridge
 // -----------------------------------------------------------------------------
 
+// GenericContainer::from_json/to_json are implemented in
+// src_json_interface/, which is not part of this build yet (see the
+// top-level CMakeLists.txt header comment). Calling through to them
+// unconditionally would leave this object with an unresolved external
+// reference, which a shared-library build must resolve at link time.
+// Revert gc_from_json/gc_to_json to the commented-out bodies below once
+// that backend is back in the build.
+
 int
 gc_from_json( gc_handle_t h, char const * json_text )
 {
   clear_error();
   if ( !h ) { set_error( "gc_from_json: null handle" ); return 1; }
   if ( !json_text ) { set_error( "gc_from_json: null json_text" ); return 1; }
+  set_error( "gc_from_json: JSON support is not built into this library" );
+  return 1;
+#if 0
   try
   {
     std::istringstream stream( json_text );
@@ -118,6 +129,7 @@ gc_from_json( gc_handle_t h, char const * json_text )
     set_error( "gc_from_json: unknown error" );
   }
   return 1;
+#endif
 }
 
 char *
@@ -125,6 +137,9 @@ gc_to_json( gc_handle_t h )
 {
   clear_error();
   if ( !h ) { set_error( "gc_to_json: null handle" ); return nullptr; }
+  set_error( "gc_to_json: JSON support is not built into this library" );
+  return nullptr;
+#if 0
   try
   {
     std::ostringstream stream;
@@ -149,6 +164,7 @@ gc_to_json( gc_handle_t h )
     set_error( "gc_to_json: unknown error" );
   }
   return nullptr;
+#endif
 }
 
 void
