@@ -11,6 +11,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <span>
 #include <vector>
 
 using namespace GC_namespace;
@@ -94,6 +95,20 @@ TEST_CASE( "serialize into undersized buffer throws", "[serialize][errors]" )
   std::vector<uint8_t> buf( static_cast<size_t>( need ) );
   CHECK_THROWS_AS( gc.serialize( need - 1, buf.data() ), std::runtime_error );
   CHECK_THROWS_AS( gc.serialize( 0, buf.data() ), std::runtime_error );
+}
+
+TEST_CASE( "span overloads serialize and de_serialize", "[serialize][span]" )
+{
+  GenericContainer gc;
+  gc["x"] = vec_real_type{ 1.5, 2.5 };
+
+  std::vector<uint8_t> buf( size_t( gc.mem_size() ) );
+  CHECK( gc.serialize( std::span<uint8_t>( buf ) ) == int32_t( buf.size() ) );
+
+  GenericContainer dst;
+  CHECK( dst.de_serialize( std::span<uint8_t const>( buf ) ) == int32_t( buf.size() ) );
+  CHECK( dst == gc );
+  CHECK_FALSE( dst != gc );
 }
 
 TEST_CASE( "property: random containers round trip", "[serialize][property]" )

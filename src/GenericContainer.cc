@@ -80,7 +80,6 @@ namespace GC_namespace
   //!
   //! precision used in printing number
   //!
-  unsigned stream_number_precision{ 12 };
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 
@@ -211,45 +210,7 @@ namespace GC_namespace
 
 #endif
 
-  string_view to_string( GC_type const s )
-  {
-    switch ( s )
-    {
-      case GC_type::NOTYPE: return "NOTYPE";
-      case GC_type::POINTER: return "pointer";
-      case GC_type::BOOL: return "bool_type";
-      case GC_type::INTEGER: return "int_type";
-      case GC_type::LONG: return "long_type";
-      case GC_type::REAL: return "real_type";
-      case GC_type::COMPLEX: return "complex_type";
-      case GC_type::STRING: return "string_type";
-      case GC_type::VEC_POINTER: return "vec_pointer_type";
-      case GC_type::VEC_BOOL: return "vec_bool_type";
-      case GC_type::VEC_INTEGER: return "vec_int_type";
-      case GC_type::VEC_LONG: return "vec_long_type";
-      case GC_type::VEC_REAL: return "vec_real_type";
-      case GC_type::VEC_COMPLEX: return "vec_complex_type";
-      case GC_type::VEC_STRING: return "vec_string_type";
-      case GC_type::MAT_INTEGER: return "mat_int_type";
-      case GC_type::MAT_LONG: return "mat_long_type";
-      case GC_type::MAT_REAL: return "mat_real_type";
-      case GC_type::MAT_COMPLEX: return "mat_complex_type";
-      case GC_type::VECTOR: return "vector_type";
-      case GC_type::MAP: return "map_type";
-    }
-    return "";
-  }
 
-#ifdef GENERIC_CONTAINER_ON_WINDOWS
-  bool GenericContainer::simple_data() const
-  {
-    return get_type() <= GC_type::STRING;
-  }
-  bool GenericContainer::simple_vec_data() const
-  {
-    return get_type() < GC_type::VEC_STRING;
-  }
-#endif
 
   void GenericContainer::get_keys( vec_string_type & keys ) const
   {
@@ -3553,12 +3514,12 @@ namespace GC_namespace
 
   void gc_do_error( std::string const & msg )
   {
-    throw std::runtime_error( msg );
+    throw GenericError( msg );
   }
 
   void GenericContainer::exception( string_view const where )
   {
-    throw std::runtime_error( string_type( where ) );
+    throw GenericError( string_type( where ) );
   }
 
 

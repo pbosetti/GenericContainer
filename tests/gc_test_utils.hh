@@ -14,11 +14,14 @@ namespace gc_test
 
   using GC_namespace::GenericContainer;
 
-  //! Structural deep equality via compare_content (empty diff = equal).
-  //! Replaced by operator== once Phase 4 lands; the semantics must not change.
+  //! Structural deep equality, checked through BOTH mechanisms the library
+  //! offers: the C++20 operator== (variant/Box deep equality) and the
+  //! diagnostic compare_content (empty diff = equal). They must agree.
   inline bool gc_equal( GenericContainer const & a, GenericContainer const & b )
   {
-    return a.compare_content( b ).empty() && b.compare_content( a ).empty();
+    bool const eq = ( a == b );
+    bool const cc = a.compare_content( b ).empty() && b.compare_content( a ).empty();
+    return eq && cc;
   }
 
   //! Deterministic random container generator for property-style round trips.
