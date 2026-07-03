@@ -307,6 +307,8 @@ gc2.from_yaml( in );
 `file_YAML_to_GC` / `YAML_to_GC` / `GC_to_YAML` convenience wrappers.
 Link `GenericContainer::Yaml`.
 
+> **A NOTE REGARDING TOML/YAML**: Expressionist only supports JSON, so if you want to evaluate expressions in TOML/YAML, use those libraries' won conversion to JSON, then run Expressionist on the JSON, then load to `GenericContainer` as above.
+
 ## Lua
 
 `GenericContainer::Lua` embeds Lua 5.4 and exchanges data with it through
