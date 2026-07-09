@@ -39,23 +39,20 @@ endif()
 
 # nlohmann/json is only needed to build test_nlohmann_interface.cc, which
 # exercises the opt-in include/GenericContainer/GenericContainerInterface_nlohmann.hh
-# adapter; GenericContainer itself has no dependency on it. Prefer an
-# installed package, fetch the header-only "include.zip" release asset
-# otherwise (no CMakeLists.txt in that archive, so nothing to build).
-find_package( nlohmann_json 3 QUIET )
-if ( NOT TARGET nlohmann_json::nlohmann_json )
-  FetchContent_Declare(
-    nlohmann_json
-    URL https://github.com/nlohmann/json/releases/download/v3.11.3/include.zip
-  )
-  FetchContent_MakeAvailable( nlohmann_json )
-  add_library( nlohmann_json INTERFACE )
-  add_library( nlohmann_json::nlohmann_json ALIAS nlohmann_json )
-  target_include_directories(
-    nlohmann_json SYSTEM INTERFACE
-    "$<BUILD_INTERFACE:${nlohmann_json_SOURCE_DIR}/include>"
-  )
-endif()
+# adapter; GenericContainer itself has no dependency on it. Always fetch the
+# pinned header-only "include.zip" release asset so local builds and CI exercise
+# the same adapter surface.
+FetchContent_Declare(
+  nlohmann_json
+  URL https://github.com/nlohmann/json/releases/download/v3.11.3/include.zip
+)
+FetchContent_MakeAvailable( nlohmann_json )
+add_library( nlohmann_json INTERFACE )
+add_library( nlohmann_json::nlohmann_json ALIAS nlohmann_json )
+target_include_directories(
+  nlohmann_json SYSTEM INTERFACE
+  "$<BUILD_INTERFACE:${nlohmann_json_SOURCE_DIR}/include>"
+)
 
 file( GLOB GC_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cc" )
 

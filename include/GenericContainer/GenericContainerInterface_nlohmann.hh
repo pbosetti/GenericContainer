@@ -48,8 +48,7 @@
 //! itself has no hard dependency on it, only translation units that include
 //! this header need `nlohmann/json.hpp` on their include path.
 //!
-namespace nlohmann
-{
+NLOHMANN_JSON_NAMESPACE_BEGIN
 
   //!
   //! \addtogroup JSON
@@ -223,7 +222,7 @@ namespace nlohmann
   //! @}
   //!
 
-}  // namespace nlohmann
+NLOHMANN_JSON_NAMESPACE_END
 
 #endif
 
