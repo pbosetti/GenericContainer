@@ -256,6 +256,14 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
     {
       GC_namespace::from_json( j, gc );
     }
+
+    static GC_namespace::GenericContainer
+    from_json( nlohmann::json const & j )
+    {
+      GC_namespace::GenericContainer gc;
+      GC_namespace::from_json( j, gc );
+      return gc;
+    }
   };
 
 NLOHMANN_JSON_NAMESPACE_END
