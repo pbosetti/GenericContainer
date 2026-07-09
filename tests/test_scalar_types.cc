@@ -206,6 +206,33 @@ TEST_CASE( "get_as_int / get_as_long convert in-range values", "[scalar]" )
   CHECK( gc.get_as_ulong() == 8u );
 }
 
+TEST_CASE( "get_as_long round trips values beyond 32 bits", "[scalar][regression]" )
+{
+  // Regression: get_value<long_type> used to cast through the built-in
+  // `long` (32 bits under Windows/LLP64) instead of `long_type` (int64_t),
+  // silently truncating any value whose set bits all live above bit 31.
+  GenericContainer gc;
+  gc.set_long( 1LL << 40 );
+  CHECK( gc.get_as_long() == ( 1LL << 40 ) );
+
+  gc.set_long( 1LL << 41 );
+  CHECK( gc.get_as_long() == ( 1LL << 41 ) );
+
+  gc.set_long( -( 1LL << 40 ) );
+  CHECK( gc.get_as_long() == -( 1LL << 40 ) );
+
+  long_type out{ 0 };
+  gc.set_long( 1LL << 40 );
+  gc.get_value( out );
+  CHECK( out == ( 1LL << 40 ) );
+
+  gc.set_real( 1e12 );
+  CHECK( gc.get_as_long() == 1000000000000LL );
+
+  gc.set_complex( 1e12, 0.0 );
+  CHECK( gc.get_as_long() == 1000000000000LL );
+}
+
 TEST_CASE( "get_value copies into out-parameter", "[scalar]" )
 {
   GenericContainer gc;

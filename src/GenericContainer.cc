@@ -1502,21 +1502,21 @@ namespace GC_namespace
     switch ( get_type() )
     {
       case GC_type::BOOL: v = _b() ? 1 : 0; break;
-      case GC_type::INTEGER: v = static_cast<long>( _i() ); break;
-      case GC_type::LONG: v = static_cast<long>( _l() ); break;
+      case GC_type::INTEGER: v = static_cast<long_type>( _i() ); break;
+      case GC_type::LONG: v = static_cast<long_type>( _l() ); break;
       case GC_type::REAL:
         GC_ASSERT(
           GC_details::real_fits_integral<long_type>( _r() ),
           where << " in get_value(...) fractional `real` value '" << _r()
                 << "' cannot be converted into `long_type'" )
-        v = static_cast<long>( _r() );
+        v = static_cast<long_type>( _r() );
         break;
       case GC_type::COMPLEX:
         GC_ASSERT(
           isZero0( _c().imag() ) && GC_details::real_fits_integral<long_type>( _c().real() ),
           where << " in get_value(...) `complex` value = " << to_string( _c() )
                 << " cannot be converted into `long_type'" )
-        v = static_cast<long>( _c().real() );
+        v = static_cast<long_type>( _c().real() );
         break;
       case GC_type::NOTYPE:
       case GC_type::POINTER:
