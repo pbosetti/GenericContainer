@@ -1,8 +1,7 @@
 # GenericContainer
 
 [![CI](https://github.com/pbosetti/GenericContainer/actions/workflows/ci.yml/badge.svg)](https://github.com/pbosetti/GenericContainer/actions/workflows/ci.yml)
-[![Codecov](https://codecov.io/gh/pbosetti/GenericContainer/graph/badge.svg?branch=main)](https://codecov.io/gh/pbosetti/GenericContainer)
-![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
+[![codecov](https://codecov.io/gh/pbosetti/GenericContainer/branch/main/graph/badge.svg?token=9e92oMPoIN)](https://codecov.io/gh/pbosetti/GenericContainer)
 ![CMake](https://img.shields.io/badge/CMake-3.25%2B-informational.svg)
 [![License: BSD 2-Clause](https://img.shields.io/badge/License-BSD--2--Clause-brightgreen.svg)](LICENSE.md)
 
