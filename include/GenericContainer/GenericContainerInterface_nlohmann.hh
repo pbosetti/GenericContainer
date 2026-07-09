@@ -240,6 +240,26 @@ namespace GC_namespace
 
 }  // namespace GC_namespace
 
+NLOHMANN_JSON_NAMESPACE_BEGIN
+
+  template <>
+  struct adl_serializer<GC_namespace::GenericContainer, void>
+  {
+    static void
+    to_json( nlohmann::json & j, GC_namespace::GenericContainer const & gc )
+    {
+      GC_namespace::to_json( j, gc );
+    }
+
+    static void
+    from_json( nlohmann::json const & j, GC_namespace::GenericContainer & gc )
+    {
+      GC_namespace::from_json( j, gc );
+    }
+  };
+
+NLOHMANN_JSON_NAMESPACE_END
+
 #endif
 
 //
