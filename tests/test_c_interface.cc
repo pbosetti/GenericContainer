@@ -119,3 +119,176 @@ TEST_CASE( "C API error codes on misuse", "[c_api]" )
   // exceptions to return codes; it must not throw across the C boundary)
   CHECK( GC_push_map_position( "k" ) != 0 );
 }
+
+TEST_CASE( "C API vector element push for every scalar kind", "[c_api]" )
+{
+  CGuard g( "c_push_all" );
+
+  CHECK( GC_set_empty_vector() == 0 );
+  CHECK( GC_push_bool( 1 ) == 0 );
+  CHECK( GC_push_real( 2.5 ) == 0 );
+  c_complex_type const cc{ 1.0, -1.0 };
+  CHECK( GC_push_complex( &cc ) == 0 );
+  CHECK( GC_push_complex2( 3.0, 4.0 ) == 0 );
+  CHECK( GC_get_vector_size() == 4 );
+}
+
+TEST_CASE( "C API typed vector setters for bool and complex", "[c_api]" )
+{
+  CGuard g( "c_typed_vectors" );
+
+  int const bvals[2]{ 1, 0 };
+  CHECK( GC_set_vector_of_bool( bvals, 2 ) == 0 );
+  CHECK( GC_get_bool_at_pos( 0 ) == 1 );
+  CHECK( GC_get_bool_at_pos( 1 ) == 0 );
+
+  double const re[2]{ 1.0, 2.0 };
+  double const im[2]{ -1.0, -2.0 };
+  CHECK( GC_set_vector_of_complex( re, im, 2 ) == 0 );
+  c_complex_type const c0{ GC_get_complex_at_pos( 0 ) };
+  CHECK( c0.real == 1.0 );
+  CHECK( c0.imag == -1.0 );
+  CHECK( GC_get_complex_real_at_pos( 1 ) == 2.0 );
+  CHECK( GC_get_complex_imag_at_pos( 1 ) == -2.0 );
+}
+
+TEST_CASE( "C API empty typed vectors", "[c_api]" )
+{
+  CGuard g( "c_empty_vectors" );
+
+  CHECK( GC_set_empty_vector_of_bool() == 0 );
+  CHECK( GC_set_empty_vector_of_int() == 0 );
+  CHECK( GC_set_empty_vector_of_real() == 0 );
+  CHECK( GC_set_empty_vector_of_complex() == 0 );
+  CHECK( GC_set_empty_vector_of_string() == 0 );
+  CHECK( GC_get_vector_size() == 0 );
+}
+
+TEST_CASE( "C API generic vector allocation with GC_set_vector", "[c_api]" )
+{
+  CGuard g( "c_set_vector" );
+
+  CHECK( GC_set_vector( 5 ) == 0 );
+  CHECK( GC_get_vector_size() == 5 );
+  CHECK( GC_push_vector_position( 2 ) == 0 );
+  CHECK( GC_set_int( 42 ) == 0 );
+  CHECK( GC_pop_head() == 0 );
+  CHECK( GC_get_int_at_pos( 2 ) == 42 );
+}
+
+TEST_CASE( "C API matrix coordinate access", "[c_api]" )
+{
+  CGuard g( "c_matrix" );
+
+  REQUIRE( GC_fill_for_test( "c_matrix" ) == 0 );
+  REQUIRE( GC_select( "c_matrix" ) == 0 );
+  REQUIRE( GC_reset_head() == 0 );
+  CHECK( GC_push_vector_position( 8 ) == 0 );  // element 8: mat_real 2x2
+  CHECK( GC_get_matrix_num_rows() == 2 );
+  CHECK( GC_get_matrix_num_cols() == 2 );
+  CHECK( GC_get_real_at_coor( 1, 1 ) == 2 );
+  CHECK( GC_get_real_at_coor( 0, 1 ) == 3 );
+  CHECK( GC_pop_head() == 0 );
+
+  CHECK( GC_push_vector_position( 9 ) == 0 );  // element 9: mat_complex 2x2
+  c_complex_type const cc{ GC_get_complex_at_coor( 1, 1 ) };
+  CHECK( cc.real == 2 );
+  CHECK( cc.imag == 2 );
+  CHECK( GC_get_complex_real_at_coor( 0, 1 ) == 1 );
+  CHECK( GC_get_complex_imag_at_coor( 0, 1 ) == -1 );
+}
+
+TEST_CASE( "C API introspection: type name, dump, print, mem_ptr", "[c_api]" )
+{
+  CGuard g( "c_introspect" );
+
+  CHECK( GC_set_real( 1.5 ) == 0 );
+  CHECK( std::string( GC_get_type_name() ) == "real_type" );
+  CHECK( GC_print_content_types() == 0 );
+  CHECK( GC_dump() == 0 );
+  CHECK( GC_mem_ptr( "c_introspect" ) != nullptr );
+
+  CHECK( GC_reset_head() == 0 );
+}
+
+TEST_CASE( "C API is a safe no-op / returns sentinel values before any container is active", "[c_api]" )
+{
+  // Deleting the currently-active id nulls the active pointer without
+  // creating a new one, exercising every `gc_active == nullptr` guard.
+  REQUIRE( GC_new( "c_no_active" ) == 0 );
+  REQUIRE( GC_delete( "c_no_active" ) == 0 );
+
+  CHECK( GC_get_type() == -1 );
+  CHECK( std::string( GC_get_type_name() ).empty() );
+  CHECK( GC_mem_ptr( "c_no_active" ) != nullptr );  // GC_mem_ptr re-selects internally
+
+  // re-null the active pointer for the remaining nullptr-guard checks
+  REQUIRE( GC_delete( "c_no_active" ) == 0 );
+
+  CHECK( GC_get_bool() == 0 );
+  CHECK( GC_get_int() == 0 );
+  CHECK( GC_get_long() == 0 );
+  CHECK( GC_get_real() == 0 );
+  c_complex_type const c{ GC_get_complex() };
+  CHECK( c.real == 0 );
+  CHECK( c.imag == 0 );
+  CHECK( GC_get_complex_re() == 0 );
+  CHECK( GC_get_complex_im() == 0 );
+  CHECK( GC_get_string() == nullptr );
+
+  CHECK( GC_get_bool_at_pos( 0 ) == 0 );
+  CHECK( GC_get_int_at_pos( 0 ) == 0 );
+  CHECK( GC_get_real_at_pos( 0 ) == 0 );
+  c_complex_type const cp{ GC_get_complex_at_pos( 0 ) };
+  CHECK( cp.real == 0 );
+  CHECK( cp.imag == 0 );
+  CHECK( GC_get_complex_real_at_pos( 0 ) == 0 );
+  CHECK( GC_get_complex_imag_at_pos( 0 ) == 0 );
+  CHECK( GC_get_string_at_pos( 0 ) == nullptr );
+
+  CHECK( GC_get_real_at_coor( 0, 0 ) == 0 );
+  c_complex_type const cc{ GC_get_complex_at_coor( 0, 0 ) };
+  CHECK( cc.real == 0 );
+  CHECK( cc.imag == 0 );
+  CHECK( GC_get_complex_real_at_coor( 0, 0 ) == 0 );
+  CHECK( GC_get_complex_imag_at_coor( 0, 0 ) == 0 );
+
+  CHECK( GC_get_vector_size() == 0 );
+  CHECK( GC_get_matrix_num_rows() == 0 );
+  CHECK( GC_get_matrix_num_cols() == 0 );
+
+  CHECK( GC_set_bool( 1 ) != 0 );
+  CHECK( GC_set_int( 1 ) != 0 );
+  CHECK( GC_set_real( 1.0 ) != 0 );
+  c_complex_type const sc{ 1.0, 1.0 };
+  CHECK( GC_set_complex( &sc ) != 0 );
+  CHECK( GC_set_complex2( 1.0, 1.0 ) != 0 );
+  CHECK( GC_set_string( "x" ) != 0 );
+  CHECK( GC_push_bool( 1 ) != 0 );
+  CHECK( GC_push_int( 1 ) != 0 );
+  CHECK( GC_push_real( 1.0 ) != 0 );
+  CHECK( GC_push_complex( &sc ) != 0 );
+  CHECK( GC_push_complex2( 1.0, 1.0 ) != 0 );
+  CHECK( GC_push_string( "x" ) != 0 );
+  CHECK( GC_set_empty_vector_of_bool() != 0 );
+  CHECK( GC_set_empty_vector_of_int() != 0 );
+  CHECK( GC_set_empty_vector_of_real() != 0 );
+  CHECK( GC_set_empty_vector_of_complex() != 0 );
+  CHECK( GC_set_empty_vector_of_string() != 0 );
+  CHECK( GC_set_vector_of_bool( nullptr, 0 ) != 0 );
+  CHECK( GC_set_vector_of_int( nullptr, 0 ) != 0 );
+  CHECK( GC_set_vector_of_real( nullptr, 0 ) != 0 );
+  CHECK( GC_set_vector_of_complex( nullptr, nullptr, 0 ) != 0 );
+  CHECK( GC_set_vector_of_string( nullptr, 0 ) != 0 );
+  CHECK( GC_set_vector( 1 ) != 0 );
+  CHECK( GC_set_empty_vector() != 0 );
+  CHECK( GC_set_map() != 0 );
+  CHECK( GC_push_vector_position( 0 ) != 0 );
+  CHECK( GC_push_map_position( "k" ) != 0 );
+  CHECK( GC_init_map_key() != 0 );
+  CHECK( GC_get_next_key() == nullptr );
+  CHECK( GC_pop_head() != 0 );
+  CHECK( GC_reset_head() != 0 );
+  CHECK( GC_print_content_types() != 0 );
+  CHECK( GC_dump() != 0 );
+}

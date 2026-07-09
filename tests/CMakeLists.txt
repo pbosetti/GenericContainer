@@ -56,16 +56,20 @@ target_include_directories(
 
 file( GLOB GC_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cc" )
 
-# test_ffi.cc, test_tables.cc, test_support.cc and test_json_yaml_toml.cc
-# exercise from_json/to_json/from_yaml/to_yaml/from_toml/to_toml/from_file,
-# whose implementations live under src_*_interface/ -- not part of this
-# build yet (see the top-level CMakeLists.txt header comment). Drop them
-# until that build is restructured too; re-add once GenericContainer links
-# against those backends again.
+# test_ffi.cc exercises a gc_from_json/gc_to_json/gc_free_string FFI surface
+# that no longer exists in include/GenericContainer/GenericContainer_ffi.h;
+# test_support.cc and test_json_yaml_toml.cc exercise from_json/from_yaml/
+# from_toml/to_yaml/to_toml, whose implementations live in the opt-in
+# GenericContainer::Yaml/Toml backends (interfaces/yaml, interfaces/toml) --
+# not linked into this core-only test target (see the top-level
+# CMakeLists.txt header comment). Drop them until the FFI surface is
+# restated / the backends are linked in; test_tables.cc only exercises
+# write_formatted_data/read_formatted_data (GenericContainerTables.cc,
+# GenericContainerSupport.cc), which ARE part of the core library, so it
+# stays enabled.
 list(
   REMOVE_ITEM GC_TEST_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/test_ffi.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/test_tables.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/test_support.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/test_json_yaml_toml.cc"
 )
