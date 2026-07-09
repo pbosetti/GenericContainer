@@ -16,6 +16,11 @@ jobs:
 
       - uses: seanmiddleditch/gha-setup-ninja@v4
 
+      - name: Install LLVM coverage tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm
+
       - name: Configure
         run: >
           cmake -S . -B build -G Ninja
@@ -36,8 +41,10 @@ jobs:
 
       - name: Generate LCOV report
         run: |
-          llvm-profdata merge -sparse build/coverage-*.profraw -o build/coverage.profdata
-          llvm-cov export \
+          LLVM_PROFDATA="$(command -v llvm-profdata || command -v llvm-profdata-14)"
+          LLVM_COV="$(command -v llvm-cov || command -v llvm-cov-14)"
+          "${LLVM_PROFDATA}" merge -sparse build/coverage-*.profraw -o build/coverage.profdata
+          "${LLVM_COV}" export \
             build/tests/gc_unit_tests \
             --format=lcov \
             --instr-profile=build/coverage.profdata \
@@ -53,4 +60,3 @@ jobs:
           fail_ci_if_error: true
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
-
