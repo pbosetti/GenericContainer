@@ -35,8 +35,8 @@
 //! Opt-in `nlohmann::json` support for `GenericContainer`.
 //!
 //! Including this header (and only this header) enables conversion between
-//! `GC_namespace::GenericContainer` and `nlohmann::json` via the standard
-//! `adl_serializer` customization point:
+//! `GC_namespace::GenericContainer` and `nlohmann::json` via the standard ADL
+//! customization points:
 //!
 //! \code
 //! GC_namespace::GenericContainer gc; gc["a"] = 42;
@@ -48,21 +48,23 @@
 //! itself has no hard dependency on it, only translation units that include
 //! this header need `nlohmann/json.hpp` on their include path.
 //!
-NLOHMANN_JSON_NAMESPACE_BEGIN
+namespace GC_namespace
+{
+  namespace GenericContainerNlohmannDetail
+  {
 
   //!
   //! \addtogroup JSON
   //!
   //! @{
 
-  template <>
-  struct adl_serializer<GC_namespace::GenericContainer>
+  struct Adapter
   {
     using GenericContainer = GC_namespace::GenericContainer;
     using GC_type          = GC_namespace::GC_type;
 
     static void
-    to_json( json & j, GenericContainer const & gc )
+    to_json( nlohmann::json & j, GenericContainer const & gc )
     {
       switch ( gc.get_type() )
       {
@@ -81,24 +83,24 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
         case GC_type::VEC_STRING: j = gc.get_vec_string(); break;
         case GC_type::VEC_COMPLEX:
         {
-          json arr = json::array();
+          nlohmann::json arr = nlohmann::json::array();
           for ( auto const & vi : gc.get_vec_complex() ) arr.push_back( GC_namespace::to_string( vi ) );
           j = std::move( arr );
           break;
         }
         case GC_type::VEC_POINTER:
         {
-          json arr = json::array();
+          nlohmann::json arr = nlohmann::json::array();
           for ( auto const & vi : gc.get_vec_pointer() ) arr.push_back( pointer_to_hex( vi ) );
           j = std::move( arr );
           break;
         }
         case GC_type::VECTOR:
         {
-          json arr = json::array();
+          nlohmann::json arr = nlohmann::json::array();
           for ( auto const & vi : gc.get_vector() )
           {
-            json jj;
+            nlohmann::json jj;
             to_json( jj, vi );
             arr.push_back( std::move( jj ) );
           }
@@ -107,10 +109,10 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
         }
         case GC_type::MAP:
         {
-          json obj = json::object();
+          nlohmann::json obj = nlohmann::json::object();
           for ( auto const & [key, val] : gc.get_map() )
           {
-            json jj;
+            nlohmann::json jj;
             to_json( jj, val );
             obj[key] = std::move( jj );
           }
@@ -123,12 +125,12 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
         case GC_type::MAT_COMPLEX:
         {
           auto const & M{ gc.get_mat_complex() };
-          json         arr = json::array();
+          nlohmann::json arr = nlohmann::json::array();
           std::size_t const NR{ M.num_rows() };
           std::size_t const NC{ M.num_cols() };
           for ( std::size_t jc{ 0 }; jc < NC; ++jc )
           {
-            json col = json::array();
+            nlohmann::json col = nlohmann::json::array();
             for ( std::size_t ir{ 0 }; ir < NR; ++ir ) col.push_back( GC_namespace::to_string( M( ir, jc ) ) );
             arr.push_back( std::move( col ) );
           }
@@ -139,7 +141,7 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
     }
 
     static void
-    from_json( json const & j, GenericContainer & gc )
+    from_json( nlohmann::json const & j, GenericContainer & gc )
     {
       gc.clear();
       from_json_value( j, gc );
@@ -155,15 +157,15 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
 
   private:
     template <typename Mat>
-    static json
+    static nlohmann::json
     matrix_to_json( Mat const & M )
     {
-      json           arr = json::array();
+      nlohmann::json arr = nlohmann::json::array();
       std::size_t const NR{ M.num_rows() };
       std::size_t const NC{ M.num_cols() };
       for ( std::size_t jc{ 0 }; jc < NC; ++jc )
       {
-        json col = json::array();
+        nlohmann::json col = nlohmann::json::array();
         for ( std::size_t ir{ 0 }; ir < NR; ++ir ) col.push_back( M( ir, jc ) );
         arr.push_back( std::move( col ) );
       }
@@ -179,7 +181,7 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
     }
 
     static void
-    from_json_value( json const & j, GenericContainer & gc )
+    from_json_value( nlohmann::json const & j, GenericContainer & gc )
     {
       if ( j.is_null() ) { gc.clear(); }
       else if ( j.is_boolean() ) { gc = j.get<bool>(); }
@@ -222,7 +224,21 @@ NLOHMANN_JSON_NAMESPACE_BEGIN
   //! @}
   //!
 
-NLOHMANN_JSON_NAMESPACE_END
+  }  // namespace GenericContainerNlohmannDetail
+
+  inline void
+  to_json( nlohmann::json & j, GenericContainer const & gc )
+  {
+    GenericContainerNlohmannDetail::Adapter::to_json( j, gc );
+  }
+
+  inline void
+  from_json( nlohmann::json const & j, GenericContainer & gc )
+  {
+    GenericContainerNlohmannDetail::Adapter::from_json( j, gc );
+  }
+
+}  // namespace GC_namespace
 
 #endif
 
