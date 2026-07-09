@@ -1,0 +1,54 @@
+name: coverage
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: seanmiddleditch/gha-setup-ninja@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
+          -DCMAKE_EXE_LINKER_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          LLVM_PROFILE_FILE: ${{ github.workspace }}/build/coverage-%p.profraw
+
+      - name: Generate LCOV report
+        run: |
+          llvm-profdata merge -sparse build/coverage-*.profraw -o build/coverage.profdata
+          llvm-cov export \
+            build/tests/gc_unit_tests \
+            --format=lcov \
+            --instr-profile=build/coverage.profdata \
+            --ignore-filename-regex='/(build|_deps)/' \
+            > build/coverage.lcov
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: build/coverage.lcov
+          flags: linux-clang
+          name: linux-clang
+          fail_ci_if_error: true
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
