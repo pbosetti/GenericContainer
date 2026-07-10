@@ -139,6 +139,41 @@ TEST_CASE( "num_rows/num_cols conventions for non-matrix types", "[matrix]" )
   CHECK( gc.num_cols() == 0 );
 }
 
+TEST_CASE( "resize matrix", "[matrix]" )
+{
+  GenericContainer gc;
+  auto & m = gc.set_mat_real();
+  CHECK( m.size() == 0 );
+
+  m.resize(2, 2);
+  CHECK( m.size() == 4 );
+  CHECK( m.num_rows() == 2);
+  CHECK( m.num_cols() == 2);
+  CHECK( !m.empty() );
+
+  vec_real_type row;
+  m.get_row( 0, row );
+  CHECK( row == vec_real_type{ 0.0, 0.0 } );
+
+  m.get_row( 1, row );
+  CHECK( row == vec_real_type{ 0.0, 0.0 } );
+
+  m.resize(0, 0);
+  CHECK( m.size() == 0 );
+  CHECK( m.empty() );
+  
+  CHECK( m.num_rows() == 0);
+  CHECK( m.num_cols() == 0);
+
+  m.resize(2, 2);
+  m.clear();
+  CHECK( m.size() == 0 );
+  CHECK( m.empty() );
+  
+  CHECK( m.num_rows() == 0);
+  CHECK( m.num_cols() == 0);
+}
+
 TEST_CASE( "wrong-type matrix get throws", "[matrix][errors]" )
 {
   GenericContainer gc;
