@@ -44,44 +44,11 @@ option( GENERIC_CONTAINER_ENABLE_YAML "Build GenericContainer::Yaml (fkYAML-back
 option( GENERIC_CONTAINER_ENABLE_TOML "Build GenericContainer::Toml (toml++-backed)" ON )
 option( GENERIC_CONTAINER_ENABLE_LUA  "Build GenericContainer::Lua (embeds Lua 5.4)"  ON )
 
-# Eigen is always fetched fresh (never looked up as an installed package,
-# see below), so its version is pinned here rather than left to whatever
-# happens to be on a given machine; override with -DGENERIC_CONTAINER_EIGEN_VERSION=...
-set( GENERIC_CONTAINER_EIGEN_VERSION "5.0.0" CACHE STRING "Eigen version to fetch" )
+# Enable generation of compile commands, needed by some LSPs
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include( GNUInstallDirs )
 include( FetchContent )
-
-#   _____ _
-#  | ____(_) __ _  ___ _ __
-#  |  _| | |/ _` |/ _ \ '_ \
-#  | |___| | (_| |  __/ | | |
-#  |_____|_|\__, |\___|_| |_|
-#           |___/
-#
-# Eigen backs the mat_* types and is a PUBLIC (header-only) dependency of
-# the library: prefer an already-installed Eigen3 package, and only fetch
-# our own copy as a fallback. When fetched, SOURCE_SUBDIR points at a
-# directory with no CMakeLists.txt of its own ("cmake/", full of .cmake
-# helper scripts but no project file) so FetchContent_MakeAvailable()
-# populates the sources without configuring Eigen's own (heavy, test- and
-# doc-oriented) build -- we only need its headers.
-message( STATUS "Fetching Eigen ${GENERIC_CONTAINER_EIGEN_VERSION}" )
-FetchContent_Declare(
-  eigen3
-  URL "https://gitlab.com/libeigen/eigen/-/archive/${GENERIC_CONTAINER_EIGEN_VERSION}/eigen-${GENERIC_CONTAINER_EIGEN_VERSION}.tar.gz"
-  SOURCE_SUBDIR cmake
-)
-FetchContent_MakeAvailable( eigen3 )
-# GLOBAL: without it, this IMPORTED target is only visible inside this
-# directory and its subdirectories, not to a parent project that
-# FetchContent's GenericContainer -- such a consumer could then not
-# target_link_libraries(... Eigen3::Eigen) directly (even though the
-# include path still reaches them transitively through GenericContainer's
-# own PUBLIC link to it). A real find_package() hit doesn't have this
-# problem, since installed packages register globally visible targets.
-add_library( Eigen3::Eigen INTERFACE IMPORTED GLOBAL )
-target_include_directories( Eigen3::Eigen SYSTEM INTERFACE "${eigen3_SOURCE_DIR}" )
 
 #   _     _ _
 #  | |   (_) |__  _ __ __ _ _ __ _   _
@@ -104,7 +71,6 @@ add_library(
 add_library( GenericContainer::GenericContainer ALIAS GenericContainer )
 
 target_compile_features( GenericContainer PUBLIC cxx_std_20 )
-target_link_libraries( GenericContainer PUBLIC Eigen3::Eigen )
 target_include_directories(
   GenericContainer PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

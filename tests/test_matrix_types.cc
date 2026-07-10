@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------------*\
  |  Characterization tests: matrix types. These pin GC-level behavior       |
- |  (accessors, layout, dimensions) that must survive the Eigen migration;  |
+ |  (accessors, layout, dimensions)                                         |
  |  mat_type member API details change in Phase 3.                          |
 \*--------------------------------------------------------------------------*/
 
@@ -70,8 +70,7 @@ TEST_CASE( "matrix element read/write via get_*_at(i,j)", "[matrix]" )
 
 TEST_CASE( "matrix storage is column-major", "[matrix][layout]" )
 {
-  // The serialization wire format depends on this layout; it must survive
-  // the Eigen migration (Eigen's default is also column-major).
+  // The serialization wire format depends on this layout;
   GenericContainer gc;
   auto &           m = gc.set_mat_real( 2, 3 );
   fill_ij( m, 2, 3 );
@@ -140,6 +139,41 @@ TEST_CASE( "num_rows/num_cols conventions for non-matrix types", "[matrix]" )
   CHECK( gc.num_cols() == 0 );
 }
 
+TEST_CASE( "resize matrix", "[matrix]" )
+{
+  GenericContainer gc;
+  auto & m = gc.set_mat_real();
+  CHECK( m.size() == 0 );
+
+  m.resize(2, 2);
+  CHECK( m.size() == 4 );
+  CHECK( m.num_rows() == 2);
+  CHECK( m.num_cols() == 2);
+  CHECK( !m.empty() );
+
+  vec_real_type row;
+  m.get_row( 0, row );
+  CHECK( row == vec_real_type{ 0.0, 0.0 } );
+
+  m.get_row( 1, row );
+  CHECK( row == vec_real_type{ 0.0, 0.0 } );
+
+  m.resize(0, 0);
+  CHECK( m.size() == 0 );
+  CHECK( m.empty() );
+  
+  CHECK( m.num_rows() == 0);
+  CHECK( m.num_cols() == 0);
+
+  m.resize(2, 2);
+  m.clear();
+  CHECK( m.size() == 0 );
+  CHECK( m.empty() );
+  
+  CHECK( m.num_rows() == 0);
+  CHECK( m.num_cols() == 0);
+}
+
 TEST_CASE( "wrong-type matrix get throws", "[matrix][errors]" )
 {
   GenericContainer gc;
@@ -151,8 +185,7 @@ TEST_CASE( "wrong-type matrix get throws", "[matrix][errors]" )
 
 TEST_CASE( "out-of-range matrix access via checked accessor throws", "[matrix][errors][newbehavior]" )
 {
-  // Bounds-checked get_*_at is guaranteed behavior after the Eigen migration
-  // (Phase 3); the pre-rewrite mat_type::operator() relies on vector::at with
+  // The pre-rewrite mat_type::operator() relies on vector::at with
   // the same observable effect, so this runs unskipped.
   GenericContainer gc;
   gc.set_mat_real( 2, 2 );
